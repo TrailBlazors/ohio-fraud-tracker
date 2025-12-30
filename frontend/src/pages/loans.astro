@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Loans">
+  <div class="container">
+    <h1>Federal Loans to Ohio</h1>
+    <p class="coming-soon">Coming soon - SBA loans, PPP/EIDL data, and more.</p>
+    
+    <div class="placeholder">
+      <h2>Data Sources</h2>
+      <ul>
+        <li><strong>SBA PPP Loans</strong> - Paycheck Protection Program loans during COVID</li>
+        <li><strong>SBA EIDL</strong> - Economic Injury Disaster Loans</li>
+        <li><strong>Federal Direct Loans</strong> - From USAspending.gov</li>
+        <li><strong>Guaranteed Loans</strong> - Federal loan guarantees</li>
+      </ul>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  h1 {
+    margin-bottom: 0.5rem;
+  }
+  
+  .coming-soon {
+    color: var(--color-text-muted);
+    font-size: 1.125rem;
+    margin-bottom: 2rem;
+  }
+  
+  .placeholder {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+  }
+  
+  .placeholder h2 {
+    margin-top: 0;
+  }
+  
+  .placeholder ul {
+    margin: 0;
+    padding-left: 1.5rem;
+  }
+  
+  .placeholder li {
+    margin-bottom: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  
+  .placeholder li strong {
+    color: var(--color-text);
+  }
+</style>

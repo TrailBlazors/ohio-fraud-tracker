@@ -1,0 +1,506 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Sample data - replace with actual API call
+const grants = [
+  { id: "ASST_001", recipient: "Ohio State University", city: "Columbus", amount: 15847293, agency: "NIH", subAgency: "National Institute of Health", date: "2024-12-15", type: "Research Grant", cfda: "93.859" },
+  { id: "ASST_002", recipient: "Cleveland Clinic Foundation", city: "Cleveland", amount: 8473920, agency: "HHS", subAgency: "Health Resources and Services", date: "2024-12-14", type: "Project Grant", cfda: "93.110" },
+  { id: "ASST_003", recipient: "Case Western Reserve University", city: "Cleveland", amount: 5847293, agency: "NSF", subAgency: "National Science Foundation", date: "2024-12-13", type: "Research Grant", cfda: "47.041" },
+  { id: "ASST_004", recipient: "City of Columbus", city: "Columbus", amount: 4283948, agency: "DOT", subAgency: "Federal Highway Administration", date: "2024-12-12", type: "Formula Grant", cfda: "20.205" },
+  { id: "ASST_005", recipient: "Cincinnati Children's Hospital", city: "Cincinnati", amount: 3847293, agency: "NIH", subAgency: "National Institute of Child Health", date: "2024-12-11", type: "Research Grant", cfda: "93.865" },
+  { id: "ASST_006", recipient: "University of Cincinnati", city: "Cincinnati", amount: 3284729, agency: "DOE", subAgency: "Office of Science", date: "2024-12-10", type: "Research Grant", cfda: "81.049" },
+  { id: "ASST_007", recipient: "Kent State University", city: "Kent", amount: 2847293, agency: "ED", subAgency: "Office of Postsecondary Education", date: "2024-12-09", type: "Project Grant", cfda: "84.116" },
+  { id: "ASST_008", recipient: "Cuyahoga County", city: "Cleveland", amount: 2384729, agency: "HUD", subAgency: "Community Planning and Development", date: "2024-12-08", type: "Block Grant", cfda: "14.218" },
+  { id: "ASST_009", recipient: "Ohio Department of Health", city: "Columbus", amount: 1984729, agency: "CDC", subAgency: "Center for Disease Control", date: "2024-12-07", type: "Cooperative Agreement", cfda: "93.323" },
+  { id: "ASST_010", recipient: "Miami University", city: "Oxford", amount: 1847293, agency: "NSF", subAgency: "National Science Foundation", date: "2024-12-06", type: "Research Grant", cfda: "47.076" },
+];
+
+const pagination = {
+  currentPage: 1,
+  totalPages: 459,
+  totalRecords: 45892,
+  pageSize: 10
+};
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { 
+    style: 'currency', 
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount);
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+---
+
+<BaseLayout title="Grants">
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1>Federal Grants to Ohio</h1>
+        <p class="subtitle">Browse {pagination.totalRecords.toLocaleString()} grants from federal agencies</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" id="exportBtn">📥 Export CSV</button>
+      </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-row">
+        <div class="filter-group">
+          <label for="search">Search</label>
+          <input type="text" id="search" placeholder="Recipient name or keyword..." />
+        </div>
+        <div class="filter-group">
+          <label for="agency">Agency</label>
+          <select id="agency">
+            <option value="">All Agencies</option>
+            <option value="HHS">Health and Human Services</option>
+            <option value="ED">Education</option>
+            <option value="DOT">Transportation</option>
+            <option value="HUD">Housing and Urban Development</option>
+            <option value="DOE">Energy</option>
+            <option value="NSF">National Science Foundation</option>
+            <option value="USDA">Agriculture</option>
+            <option value="EPA">Environmental Protection</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="type">Award Type</label>
+          <select id="type">
+            <option value="">All Types</option>
+            <option value="block">Block Grant</option>
+            <option value="formula">Formula Grant</option>
+            <option value="project">Project Grant</option>
+            <option value="coop">Cooperative Agreement</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="year">Fiscal Year</label>
+          <select id="year">
+            <option value="2024">FY 2024</option>
+            <option value="2023">FY 2023</option>
+            <option value="2022">FY 2022</option>
+            <option value="2021">FY 2021</option>
+            <option value="2020">FY 2020</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="minAmount">Min Amount</label>
+          <input type="number" id="minAmount" placeholder="$0" />
+        </div>
+        <button class="btn btn-primary filter-btn">Apply Filters</button>
+      </div>
+    </div>
+    
+    <!-- Results Info -->
+    <div class="results-info">
+      <span>Showing {grants.length} of {pagination.totalRecords.toLocaleString()} results</span>
+      <div class="sort-controls">
+        <label for="sort">Sort by:</label>
+        <select id="sort">
+          <option value="amount-desc">Amount (High to Low)</option>
+          <option value="amount-asc">Amount (Low to High)</option>
+          <option value="date-desc">Date (Newest)</option>
+          <option value="date-asc">Date (Oldest)</option>
+          <option value="recipient-asc">Recipient (A-Z)</option>
+        </select>
+      </div>
+    </div>
+    
+    <!-- Grants Table -->
+    <div class="table-container">
+      <table class="grants-table">
+        <thead>
+          <tr>
+            <th class="col-recipient">Recipient</th>
+            <th class="col-amount">Amount</th>
+            <th class="col-agency">Agency</th>
+            <th class="col-type">Type</th>
+            <th class="col-date">Date</th>
+            <th class="col-actions">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {grants.map(grant => (
+            <tr>
+              <td class="col-recipient">
+                <div class="recipient-info">
+                  <span class="recipient-name">{grant.recipient}</span>
+                  <span class="recipient-city">{grant.city}, OH</span>
+                </div>
+              </td>
+              <td class="col-amount">
+                <span class="amount">{formatCurrency(grant.amount)}</span>
+              </td>
+              <td class="col-agency">
+                <div class="agency-info">
+                  <span class="agency-abbr">{grant.agency}</span>
+                  <span class="agency-full">{grant.subAgency}</span>
+                </div>
+              </td>
+              <td class="col-type">
+                <span class="type-badge">{grant.type}</span>
+              </td>
+              <td class="col-date">{formatDate(grant.date)}</td>
+              <td class="col-actions">
+                <a href={`/grant/${grant.id}`} class="view-link">View →</a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="pagination">
+      <button class="page-btn" disabled>← Previous</button>
+      <div class="page-numbers">
+        <button class="page-btn active">1</button>
+        <button class="page-btn">2</button>
+        <button class="page-btn">3</button>
+        <span class="page-ellipsis">...</span>
+        <button class="page-btn">{pagination.totalPages}</button>
+      </div>
+      <button class="page-btn">Next →</button>
+    </div>
+    
+    <!-- Page Size -->
+    <div class="page-size">
+      <label for="pageSize">Show:</label>
+      <select id="pageSize">
+        <option value="10">10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span>per page</span>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .page-header h1 {
+    margin: 0;
+    font-size: 2rem;
+  }
+  
+  .subtitle {
+    margin: 0.5rem 0 0;
+    color: var(--color-text-muted);
+  }
+  
+  .header-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+  }
+  
+  .btn-primary {
+    background: var(--color-primary);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: var(--color-primary-hover);
+  }
+  
+  .btn-secondary {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+  }
+  
+  .btn-secondary:hover {
+    background: var(--color-border);
+  }
+  
+  /* Filters */
+  .filters {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .filter-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    flex: 1;
+    min-width: 150px;
+  }
+  
+  .filter-group label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .filter-group input,
+  .filter-group select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 0.875rem;
+  }
+  
+  .filter-group input:focus,
+  .filter-group select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+  
+  .filter-btn {
+    height: 38px;
+  }
+  
+  /* Results Info */
+  .results-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .sort-controls select {
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    font-size: 0.875rem;
+  }
+  
+  /* Table */
+  .table-container {
+    overflow-x: auto;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+  
+  .grants-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  
+  .grants-table th {
+    text-align: left;
+    padding: 1rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+  
+  .grants-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+  }
+  
+  .grants-table tbody tr:hover {
+    background: var(--color-bg-tertiary);
+  }
+  
+  .grants-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  
+  /* Column styles */
+  .col-recipient {
+    min-width: 200px;
+  }
+  
+  .recipient-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  
+  .recipient-name {
+    font-weight: 500;
+    color: var(--color-text);
+  }
+  
+  .recipient-city {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  
+  .col-amount {
+    white-space: nowrap;
+  }
+  
+  .amount {
+    font-weight: 600;
+    color: var(--color-success);
+  }
+  
+  .col-agency {
+    min-width: 180px;
+  }
+  
+  .agency-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  
+  .agency-abbr {
+    font-weight: 600;
+    color: var(--color-primary);
+  }
+  
+  .agency-full {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  
+  .type-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+  
+  .col-date {
+    white-space: nowrap;
+    color: var(--color-text-muted);
+  }
+  
+  .view-link {
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  
+  /* Pagination */
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+  }
+  
+  .page-numbers {
+    display: flex;
+    gap: 0.25rem;
+  }
+  
+  .page-btn {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .page-btn:hover:not(:disabled) {
+    background: var(--color-bg-tertiary);
+  }
+  
+  .page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .page-btn.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+  }
+  
+  .page-ellipsis {
+    padding: 0.5rem;
+    color: var(--color-text-muted);
+  }
+  
+  .page-size {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+  
+  .page-size select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+  }
+  
+  @media (max-width: 768px) {
+    .filter-group {
+      min-width: 100%;
+    }
+    
+    .filter-btn {
+      width: 100%;
+    }
+  }
+</style>

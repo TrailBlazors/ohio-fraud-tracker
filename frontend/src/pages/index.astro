@@ -1,0 +1,426 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Sample data - in production this would come from your API/database
+const stats = {
+  totalGrants: 45892,
+  totalAmount: 12847293847,
+  uniqueRecipients: 8234,
+  topAgencies: [
+    { name: "Health and Human Services", amount: 4283948372, count: 12847 },
+    { name: "Department of Education", amount: 2847293847, count: 8234 },
+    { name: "Department of Agriculture", amount: 1284729384, count: 5892 },
+    { name: "Department of Transportation", amount: 982374982, count: 2847 },
+    { name: "Environmental Protection Agency", amount: 473829472, count: 1923 },
+  ],
+  recentAwards: [
+    { recipient: "Ohio State University", amount: 15847293, agency: "NIH", date: "2024-12-15", description: "Cancer research grant" },
+    { recipient: "Cleveland Clinic Foundation", amount: 8473920, agency: "HHS", date: "2024-12-14", description: "Healthcare innovation" },
+    { recipient: "Case Western Reserve University", amount: 5847293, agency: "NSF", date: "2024-12-13", description: "Engineering research" },
+    { recipient: "City of Columbus", amount: 4283948, agency: "DOT", date: "2024-12-12", description: "Infrastructure improvement" },
+    { recipient: "Cincinnati Children's Hospital", amount: 3847293, agency: "NIH", date: "2024-12-11", description: "Pediatric research" },
+  ]
+};
+
+function formatCurrency(amount: number): string {
+  if (amount >= 1e9) return `$${(amount / 1e9).toFixed(1)}B`;
+  if (amount >= 1e6) return `$${(amount / 1e6).toFixed(1)}M`;
+  if (amount >= 1e3) return `$${(amount / 1e3).toFixed(1)}K`;
+  return `$${amount.toFixed(0)}`;
+}
+
+function formatNumber(num: number): string {
+  return num.toLocaleString();
+}
+---
+
+<BaseLayout title="Home">
+  <div class="container">
+    <!-- Hero Section -->
+    <section class="hero">
+      <h1>Follow the Money</h1>
+      <p class="hero-subtitle">
+        Track federal grants, loans, and contracts flowing into Ohio. 
+        See where your tax dollars go and who's receiving them.
+      </p>
+      <div class="hero-actions">
+        <a href="/grants" class="btn btn-primary">Browse Grants</a>
+        <a href="/search" class="btn btn-secondary">Search Recipients</a>
+      </div>
+    </section>
+    
+    <!-- Stats Overview -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-value">{formatCurrency(stats.totalAmount)}</span>
+        <span class="stat-label">Total Federal Funding</span>
+        <span class="stat-period">FY 2024</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{formatNumber(stats.totalGrants)}</span>
+        <span class="stat-label">Awards</span>
+        <span class="stat-period">Grants, Loans & Contracts</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{formatNumber(stats.uniqueRecipients)}</span>
+        <span class="stat-label">Recipients</span>
+        <span class="stat-period">Organizations & Entities</span>
+      </div>
+      <div class="stat-card highlight">
+        <span class="stat-value">39</span>
+        <span class="stat-label">Failed Commitments</span>
+        <span class="stat-period">Companies missing job targets</span>
+      </div>
+    </section>
+    
+    <!-- Two Column Layout -->
+    <div class="two-col">
+      <!-- Top Agencies -->
+      <section class="card">
+        <h2>Top Awarding Agencies</h2>
+        <div class="agency-list">
+          {stats.topAgencies.map((agency, i) => (
+            <div class="agency-row">
+              <span class="agency-rank">#{i + 1}</span>
+              <div class="agency-info">
+                <span class="agency-name">{agency.name}</span>
+                <span class="agency-count">{formatNumber(agency.count)} awards</span>
+              </div>
+              <span class="agency-amount">{formatCurrency(agency.amount)}</span>
+            </div>
+          ))}
+        </div>
+        <a href="/grants?sort=agency" class="card-link">View all agencies →</a>
+      </section>
+      
+      <!-- Recent Awards -->
+      <section class="card">
+        <h2>Recent Awards</h2>
+        <div class="awards-list">
+          {stats.recentAwards.map(award => (
+            <div class="award-row">
+              <div class="award-info">
+                <span class="award-recipient">{award.recipient}</span>
+                <span class="award-desc">{award.description}</span>
+              </div>
+              <div class="award-meta">
+                <span class="award-amount">{formatCurrency(award.amount)}</span>
+                <span class="award-agency">{award.agency}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <a href="/grants?sort=date" class="card-link">View all awards →</a>
+      </section>
+    </div>
+    
+    <!-- Call to Action -->
+    <section class="cta">
+      <h2>What We Track</h2>
+      <div class="cta-grid">
+        <div class="cta-item">
+          <span class="cta-icon">💰</span>
+          <h3>Federal Grants</h3>
+          <p>Block grants, project grants, cooperative agreements from all federal agencies</p>
+        </div>
+        <div class="cta-item">
+          <span class="cta-icon">🏦</span>
+          <h3>Loans</h3>
+          <p>SBA loans, PPP/EIDL COVID relief, federal direct and guaranteed loans</p>
+        </div>
+        <div class="cta-item">
+          <span class="cta-icon">📋</span>
+          <h3>Contracts</h3>
+          <p>Federal procurement contracts awarded to Ohio businesses</p>
+        </div>
+        <div class="cta-item">
+          <span class="cta-icon">🔍</span>
+          <h3>Business Status</h3>
+          <p>Cross-referenced with Ohio Secretary of State business filings</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .hero {
+    text-align: center;
+    padding: 3rem 0 4rem;
+  }
+  
+  .hero h1 {
+    font-size: 3rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+    background: linear-gradient(135deg, var(--color-primary), #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: var(--color-text-muted);
+    max-width: 600px;
+    margin: 0 auto 2rem;
+  }
+  
+  .hero-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  
+  .btn-primary {
+    background: var(--color-primary);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background: var(--color-primary-hover);
+    text-decoration: none;
+  }
+  
+  .btn-secondary {
+    background: var(--color-bg-tertiary);
+    color: var(--color-text);
+  }
+  
+  .btn-secondary:hover {
+    background: var(--color-border);
+    text-decoration: none;
+  }
+  
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
+  
+  .stat-card {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .stat-card.highlight {
+    border-color: var(--color-warning);
+    background: rgba(245, 158, 11, 0.1);
+  }
+  
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-text);
+  }
+  
+  .stat-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+  
+  .stat-period {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+  }
+  
+  /* Two Column Layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
+  
+  .card {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+  }
+  
+  .card h2 {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+  
+  .card-link {
+    display: block;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--color-border);
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+  
+  /* Agency List */
+  .agency-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .agency-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  
+  .agency-row:last-child {
+    border-bottom: none;
+  }
+  
+  .agency-rank {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    width: 2rem;
+  }
+  
+  .agency-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .agency-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  
+  .agency-count {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  
+  .agency-amount {
+    font-weight: 600;
+    color: var(--color-success);
+  }
+  
+  /* Awards List */
+  .awards-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .award-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  
+  .award-row:last-child {
+    border-bottom: none;
+  }
+  
+  .award-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  .award-recipient {
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  
+  .award-desc {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  
+  .award-meta {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .award-amount {
+    font-weight: 600;
+    color: var(--color-success);
+  }
+  
+  .award-agency {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+  
+  /* CTA Section */
+  .cta {
+    text-align: center;
+    padding: 2rem 0;
+  }
+  
+  .cta h2 {
+    font-size: 1.5rem;
+    margin: 0 0 2rem;
+  }
+  
+  .cta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  .cta-item {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+  }
+  
+  .cta-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.75rem;
+  }
+  
+  .cta-item h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+  
+  .cta-item p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+  
+  @media (max-width: 768px) {
+    .hero h1 {
+      font-size: 2rem;
+    }
+    
+    .two-col {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

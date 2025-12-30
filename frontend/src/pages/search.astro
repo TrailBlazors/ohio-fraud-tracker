@@ -1,0 +1,184 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Search">
+  <div class="container">
+    <h1>Search Recipients & Awards</h1>
+    <p class="subtitle">Find specific businesses, organizations, or awards</p>
+    
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Search by recipient name, city, or keyword..." 
+          autofocus
+        />
+        <button class="search-btn">🔍 Search</button>
+      </div>
+      
+      <div class="search-examples">
+        <span>Try:</span>
+        <button class="example-btn">Ohio State University</button>
+        <button class="example-btn">Cleveland</button>
+        <button class="example-btn">healthcare</button>
+        <button class="example-btn">infrastructure</button>
+      </div>
+    </div>
+    
+    <div class="search-options">
+      <h2>Search By</h2>
+      <div class="options-grid">
+        <a href="/grants" class="option-card">
+          <span class="option-icon">💰</span>
+          <span class="option-title">Grants</span>
+          <span class="option-desc">Federal grants and cooperative agreements</span>
+        </a>
+        <a href="/loans" class="option-card">
+          <span class="option-icon">🏦</span>
+          <span class="option-title">Loans</span>
+          <span class="option-desc">SBA loans, PPP, EIDL</span>
+        </a>
+        <div class="option-card disabled">
+          <span class="option-icon">📋</span>
+          <span class="option-title">Contracts</span>
+          <span class="option-desc">Coming soon</span>
+        </div>
+        <div class="option-card disabled">
+          <span class="option-icon">🏢</span>
+          <span class="option-title">Recipients</span>
+          <span class="option-desc">Coming soon</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  h1 {
+    margin-bottom: 0.5rem;
+  }
+  
+  .subtitle {
+    color: var(--color-text-muted);
+    margin-bottom: 2rem;
+  }
+  
+  .search-box {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  
+  .search-input-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .search-input-wrapper input {
+    flex: 1;
+    padding: 1rem;
+    font-size: 1.125rem;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+  
+  .search-input-wrapper input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+  
+  .search-btn {
+    padding: 1rem 1.5rem;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .search-btn:hover {
+    background: var(--color-primary-hover);
+  }
+  
+  .search-examples {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+  }
+  
+  .example-btn {
+    padding: 0.25rem 0.75rem;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .example-btn:hover {
+    background: var(--color-border);
+  }
+  
+  .search-options h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  
+  .option-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+  
+  .option-card:hover:not(.disabled) {
+    border-color: var(--color-primary);
+    transform: translateY(-2px);
+  }
+  
+  .option-card.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .option-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .option-title {
+    font-weight: 600;
+    color: var(--color-text);
+    margin-bottom: 0.25rem;
+  }
+  
+  .option-desc {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+</style>
