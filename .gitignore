@@ -33,7 +33,12 @@ pip-wheel-metadata/
 data/*.csv
 data/*.json
 data/*.xlsx
+data/*.db
 !data/.gitkeep
+
+# API data
+api/data/
+*.db
 
 # Logs
 *.log
