@@ -1,0 +1,182 @@
+/* Base styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for Ohio Fraud Tracker */
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  
+  body {
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white;
+  }
+}
+
+@layer components {
+  /* Stat cards */
+  .stat-card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-6;
+  }
+  
+  /* Data tables - ensure all text has proper dark mode colors */
+  .data-table {
+    @apply w-full text-sm text-left text-gray-600 dark:text-gray-300 table-fixed;
+  }
+  
+  .data-table thead {
+    @apply text-xs uppercase bg-gray-50 dark:bg-gray-700;
+  }
+  
+  .data-table thead th {
+    @apply text-gray-600 dark:text-gray-300 px-4 py-3 font-semibold;
+  }
+  
+  .data-table td {
+    @apply px-4 py-3 text-gray-600 dark:text-gray-300;
+  }
+  
+  .data-table tbody tr {
+    @apply bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700;
+  }
+  
+  /* Amount formatting */
+  .amount-positive {
+    @apply text-green-600 dark:text-green-400 font-semibold;
+  }
+  
+  .amount-negative {
+    @apply text-red-600 dark:text-red-400 font-semibold;
+  }
+  
+  /* =========================================================================
+     CHIPS & BADGES - Enhanced visual components for categorized data
+     ========================================================================= */
+  
+  /* Base badge/chip styles */
+  .chip {
+    @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full;
+  }
+  
+  .badge {
+    @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md;
+  }
+  
+  /* Status colors */
+  .badge-success, .chip-success {
+    @apply bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400;
+  }
+  
+  .badge-warning, .chip-warning {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400;
+  }
+  
+  .badge-danger, .chip-danger {
+    @apply bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400;
+  }
+  
+  .badge-info, .chip-info {
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400;
+  }
+  
+  /* Award type specific colors */
+  .chip-grant {
+    @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-400;
+  }
+  
+  .chip-loan {
+    @apply bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-400;
+  }
+  
+  .chip-contract {
+    @apply bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-400;
+  }
+  
+  .chip-cooperative {
+    @apply bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-400;
+  }
+  
+  .chip-payment {
+    @apply bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-400;
+  }
+  
+  .chip-insurance {
+    @apply bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-400;
+  }
+  
+  .chip-other {
+    @apply bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300;
+  }
+  
+  /* Agency chips with distinct colors */
+  .chip-agency {
+    @apply bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-mono text-xs;
+  }
+  
+  .chip-agency-hhs { @apply bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-400; }
+  .chip-agency-ed { @apply bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-400; }
+  .chip-agency-dot { @apply bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-400; }
+  .chip-agency-hud { @apply bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-400; }
+  .chip-agency-usda { @apply bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400; }
+  .chip-agency-doj { @apply bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-400; }
+  .chip-agency-dol { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-400; }
+  .chip-agency-sba { @apply bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400; }
+  .chip-agency-epa { @apply bg-lime-100 text-lime-800 dark:bg-lime-900/50 dark:text-lime-400; }
+  .chip-agency-doe { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-400; }
+  .chip-agency-va { @apply bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-400; }
+  .chip-agency-dhs { @apply bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300; }
+  
+  /* Source chips */
+  .chip-source {
+    @apply bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 text-xs;
+  }
+  
+  .chip-source-usaspending {
+    @apply bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800;
+  }
+  
+  .chip-source-ppp {
+    @apply bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800;
+  }
+  
+  /* Business status chips */
+  .chip-status-active {
+    @apply bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-400;
+  }
+  
+  .chip-status-inactive {
+    @apply bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400;
+  }
+  
+  .chip-status-unknown {
+    @apply bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400;
+  }
+  
+  /* Chips with icons */
+  .chip-icon {
+    @apply w-3.5 h-3.5;
+  }
+  
+  /* Table text overrides - ensure no black text in dark mode */
+  table .text-gray-900 {
+    @apply dark:text-white;
+  }
+  
+  table .text-gray-700 {
+    @apply dark:text-gray-300;
+  }
+  
+  table .text-gray-600 {
+    @apply dark:text-gray-300;
+  }
+  
+  table .text-gray-500 {
+    @apply dark:text-gray-400;
+  }
+  
+  /* Font styles in tables */
+  table .font-medium {
+    @apply text-gray-800 dark:text-white;
+  }
+}

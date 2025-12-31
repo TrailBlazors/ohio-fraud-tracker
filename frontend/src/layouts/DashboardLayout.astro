@@ -1,0 +1,296 @@
+---
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Track federal grants, loans, and contracts in Ohio" } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+const navItems = [
+  { href: "/", label: "Dashboard", icon: "chart-pie" },
+  { href: "/grants", label: "Grants", icon: "gift" },
+  { href: "/loans", label: "Loans", icon: "currency-dollar" },
+  { href: "/recipients", label: "Recipients", icon: "users" },
+  { href: "/flagged", label: "Flagged", icon: "flag" },
+  { href: "/search", label: "Search", icon: "search" },
+  { href: "/data-status", label: "Data Status", icon: "database" },
+];
+
+// Fetch data coverage from API
+let dataCoverage = { sources: {} };
+try {
+  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_URL}/api/stats/data-coverage`);
+  if (res.ok) {
+    dataCoverage = await res.json();
+  }
+} catch (e) {
+  // Silently fail - sidebar will show without year ranges
+}
+
+// Helper to format source info
+function getSourceInfo(sourceKey: string) {
+  const info = dataCoverage.sources?.[sourceKey];
+  if (info && info.min_year && info.max_year) {
+    return `${info.min_year}-${info.max_year}`;
+  }
+  return null;
+}
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content={description} />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <title>{title} | Ohio Fraud Tracker</title>
+  <script is:inline>
+    // Check theme preference on page load (before rendering)
+    if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+  
+  <!-- Navbar -->
+  <nav class="fixed top-0 z-50 w-full bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+    <div class="px-3 py-3 lg:px-5 lg:pl-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center justify-start">
+          <button data-drawer-target="logo-sidebar" data-drawer-toggle="logo-sidebar" aria-controls="logo-sidebar" type="button" class="inline-flex items-center p-2 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
+            <span class="sr-only">Open sidebar</span>
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+              <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path>
+            </svg>
+          </button>
+          <a href="/" class="flex ms-2 md:me-24 items-center gap-3">
+            <!-- Ohio flag (burgee/swallowtail shape) -->
+            <svg class="w-12 h-7" viewBox="0 0 143 95" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Define the swallowtail clip path -->
+              <defs>
+                <clipPath id="swallowtail">
+                  <polygon points="0,0 105,0 143,47.5 105,95 0,95"/>
+                </clipPath>
+              </defs>
+              <g clip-path="url(#swallowtail)">
+                <!-- 5 horizontal stripes: red, white, red, white, red -->
+                <rect x="0" y="0" width="143" height="19" fill="#CE1126"/>
+                <rect x="0" y="19" width="143" height="19" fill="white"/>
+                <rect x="0" y="38" width="143" height="19" fill="#CE1126"/>
+                <rect x="0" y="57" width="143" height="19" fill="white"/>
+                <rect x="0" y="76" width="143" height="19" fill="#CE1126"/>
+                <!-- Blue triangle -->
+                <polygon points="0,0 0,95 57,47.5" fill="#002868"/>
+                <!-- White O circle -->
+                <circle cx="23" cy="47.5" r="12" fill="white"/>
+                <!-- Red center of O -->
+                <circle cx="23" cy="47.5" r="5" fill="#CE1126"/>
+                <!-- Stars around the O (13 stars) -->
+                <g fill="white">
+                  <polygon points="23,28 24,32 28,32 25,35 26,39 23,37 20,39 21,35 18,32 22,32" transform="scale(0.5) translate(23,28)"/>
+                  <circle cx="23" cy="28" r="2"/>
+                  <circle cx="31" cy="31" r="2"/>
+                  <circle cx="36" cy="38" r="2"/>
+                  <circle cx="38" cy="47.5" r="2"/>
+                  <circle cx="36" cy="57" r="2"/>
+                  <circle cx="31" cy="64" r="2"/>
+                  <circle cx="23" cy="67" r="2"/>
+                  <circle cx="15" cy="64" r="2"/>
+                  <circle cx="10" cy="57" r="2"/>
+                  <circle cx="8" cy="47.5" r="2"/>
+                  <circle cx="10" cy="38" r="2"/>
+                  <circle cx="15" cy="31" r="2"/>
+                </g>
+                <!-- 4 stars at apex of triangle -->
+                <g fill="white">
+                  <circle cx="45" cy="38" r="2"/>
+                  <circle cx="50" cy="43" r="2"/>
+                  <circle cx="50" cy="52" r="2"/>
+                  <circle cx="45" cy="57" r="2"/>
+                </g>
+              </g>
+            </svg>
+            <span class="self-center text-xl font-semibold sm:text-2xl whitespace-nowrap text-gray-900 dark:text-white">
+              Ohio Fraud Tracker
+            </span>
+            <!-- Magnifying glass icon -->
+            <svg class="w-8 h-8 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+            </svg>
+          </a>
+        </div>
+        <div class="flex items-center">
+          <div class="flex items-center ms-3">
+            <!-- Dark mode toggle -->
+            <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5">
+              <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+              </svg>
+              <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside id="logo-sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen pt-20 transition-transform -translate-x-full bg-white border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar">
+    <div class="h-full px-3 pb-4 overflow-y-auto bg-white dark:bg-gray-800">
+      <ul class="space-y-2 font-medium">
+        {navItems.map((item) => (
+          <li>
+            <a href={item.href} class={`flex items-center p-2 rounded-lg group ${currentPath === item.href ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+              {item.icon === 'chart-pie' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"></path>
+                  <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"></path>
+                </svg>
+              )}
+              {item.icon === 'gift' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M5 5a3 3 0 015-2.236A3 3 0 0114.83 6H16a2 2 0 110 4h-5V9a1 1 0 10-2 0v1H4a2 2 0 110-4h1.17C5.06 5.687 5 5.35 5 5zm4 1V5a1 1 0 10-1 1h1zm3 0a1 1 0 10-1-1v1h1z" clip-rule="evenodd"></path>
+                  <path d="M9 11H3v5a2 2 0 002 2h4v-7zM11 18h4a2 2 0 002-2v-5h-6v7z"></path>
+                </svg>
+              )}
+              {item.icon === 'currency-dollar' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path>
+                </svg>
+              )}
+              {item.icon === 'users' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+                </svg>
+              )}
+              {item.icon === 'flag' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
+                </svg>
+              )}
+              {item.icon === 'search' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+                </svg>
+              )}
+              {item.icon === 'database' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"></path>
+                  <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"></path>
+                  <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"></path>
+                </svg>
+              )}
+              <span class="ms-3">{item.label}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      
+      <!-- Data sources info -->
+      <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+        <p class="px-2 text-xs text-gray-500 dark:text-gray-400 uppercase font-semibold">Data Sources</p>
+        <ul class="mt-2 space-y-2 text-sm">
+          <li class="px-2 py-1">
+            <a href="https://usaspending.gov" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+              <span class="flex items-center">
+                <span class="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
+                USAspending.gov
+                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
+                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
+                </svg>
+              </span>
+              {getSourceInfo('usaspending') && (
+                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{getSourceInfo('usaspending')}</span>
+              )}
+            </a>
+          </li>
+          <li class="px-2 py-1">
+            <a href="https://data.sba.gov/dataset/ppp-foia" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+              <span class="flex items-center">
+                <span class="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
+                SBA PPP Loans
+                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
+                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
+                </svg>
+              </span>
+              {getSourceInfo('sba_ppp') && (
+                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{getSourceInfo('sba_ppp')}</span>
+              )}
+            </a>
+          </li>
+          <li class="px-2 py-1">
+            <a href="https://www.ohiosos.gov/businesses/" target="_blank" rel="noopener noreferrer" class="flex items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+              <span class="w-2 h-2 bg-yellow-500 rounded-full mr-2 flex-shrink-0"></span>
+              Ohio SOS
+              <span class="text-xs text-gray-400 ml-1">(coming)</span>
+              <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
+                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
+              </svg>
+            </a>
+          </li>
+          <li class="px-2 py-1">
+            <a href="https://checkbook.ohio.gov" target="_blank" rel="noopener noreferrer" class="flex items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+              <span class="w-2 h-2 bg-yellow-500 rounded-full mr-2 flex-shrink-0"></span>
+              Ohio Checkbook
+              <span class="text-xs text-gray-400 ml-1">(coming)</span>
+              <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
+                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
+              </svg>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="p-4 sm:ml-64">
+    <div class="p-4 mt-14">
+      <slot />
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js"></script>
+  <script is:inline>
+    // Dark mode toggle
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+    const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+
+    // Set initial icon based on current theme
+    if (document.documentElement.classList.contains('dark')) {
+      themeToggleLightIcon.classList.remove('hidden');
+    } else {
+      themeToggleDarkIcon.classList.remove('hidden');
+    }
+
+    themeToggleBtn.addEventListener('click', function() {
+      themeToggleDarkIcon.classList.toggle('hidden');
+      themeToggleLightIcon.classList.toggle('hidden');
+
+      if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('color-theme', 'light');
+      } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('color-theme', 'dark');
+      }
+    });
+  </script>
+</body>
+</html>

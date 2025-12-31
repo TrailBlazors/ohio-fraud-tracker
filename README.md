@@ -2,62 +2,277 @@
 
 A platform to aggregate and cross-reference public funding data to identify potential fraud in Ohio.
 
-## Data Sources
+## Overview
 
-### Federal
-- **USAspending.gov** - Federal grants, contracts, loans to Ohio recipients
-- **SBA PPP/EIDL** - Pandemic relief loan data
-- **SBIR/STTR** - Small business innovation research awards
+The Ohio Fraud Tracker aggregates federal grants, loans, and contracts data for Ohio recipients, enabling cross-referencing with business registrations to detect potential fraud patterns such as:
 
-### State (Ohio)
-- **Ohio Checkbook** - State spending transparency
-- **Secretary of State** - Business registrations
-- **Ohio Auditor** - Fraud reports and audit findings
+- Awards to dissolved/inactive businesses
+- Unusual concentration of awards to related entities
+- PPP loans that may have been fraudulently obtained
+- Discrepancies between reported and actual business information
+
+## Tech Stack
+
+- **Backend**: FastAPI (Python)
+- **Database**: SQLite (local) / Turso (production)
+- **Frontend**: Astro + Tailwind CSS + Flowbite
+
+## Quick Start
+
+### 1. Clone and Setup
+
+```bash
+git clone <repository-url>
+cd ohio-fraud-tracker
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Initialize Database
+
+```bash
+cd api
+python -c "from app.database import init_db; init_db()"
+```
+
+### 3. Import Data
+
+See [Data Import Instructions](#data-import-instructions) below.
+
+### 4. Run the Application
+
+**Terminal 1 - API Server:**
+```bash
+cd api
+..\venv\Scripts\activate
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Access the application at: http://localhost:3000
+
+---
+
+## Data Import Instructions
+
+### USAspending.gov (Federal Grants & Loans)
+
+Import federal awards data from USAspending.gov API.
+
+```bash
+cd api
+..\venv\Scripts\activate
+
+# Full import (2015-2025, grants and loans) - takes several hours
+python -m scripts.import_usaspending --start-year 2015 --end-year 2025
+
+# Import specific year range
+python -m scripts.import_usaspending --start-year 2020 --end-year 2024
+
+# Import only grants
+python -m scripts.import_usaspending --award-types grants
+
+# Import only loans
+python -m scripts.import_usaspending --award-types loans
+
+# Resume interrupted import (skips years with existing data)
+python -m scripts.import_usaspending --resume
+
+# Clear and reimport
+python -m scripts.import_usaspending --clear --start-year 2020
+```
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--start-year` | 2015 | Starting fiscal year |
+| `--end-year` | Current year | Ending fiscal year |
+| `--award-types` | grants,loans | Comma-separated: grants, loans, contracts |
+| `--resume` | false | Skip years with existing data |
+| `--clear` | false | Delete existing USAspending data first |
+
+**Expected Data:**
+- ~50,000-100,000+ awards for Ohio (2015-2025)
+- Total funding: $300+ billion
+
+---
+
+### SBA PPP Loans (COVID Relief)
+
+Import Paycheck Protection Program loan data from SBA FOIA release.
+
+#### Step 1: Download CSV Files
+
+1. Go to: https://data.sba.gov/dataset/ppp-foia
+2. Download the CSV file(s):
+   - **Start with:** `public_150k_plus_240930.csv` (~1 GB) - Loans ≥ $150,000
+   - **Optional:** `public_up_to_150k_*.csv` files (~2 GB each) - Smaller loans
+3. Place files in: `api/data/sba_ppp/`
+
+#### Step 2: Run Import
+
+```bash
+cd api
+..\venv\Scripts\activate
+
+# Test with a small sample first
+python -m scripts.import_sba_ppp --file 150k_plus --limit 1000
+
+# Import the 150k+ file (recommended first)
+python -m scripts.import_sba_ppp --file 150k_plus
+
+# Import all downloaded files
+python -m scripts.import_sba_ppp
+
+# Clear and reimport
+python -m scripts.import_sba_ppp --clear --file 150k_plus
+```
+
+**Options:**
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--data-dir` | ./data/sba_ppp | Directory containing CSV files |
+| `--file` | All files | Specific file to import (e.g., `150k_plus`, `small_1`) |
+| `--limit` | None | Limit records for testing |
+| `--clear` | false | Delete existing PPP data first |
+
+**Expected Data:**
+- ~250,000+ Ohio PPP loans
+- Total: ~$25+ billion in Ohio PPP funding
+- Includes forgiveness amounts and business details
+
+---
+
+### Ohio Secretary of State (Business Registry)
+
+*Coming soon* - Cross-reference recipients with Ohio business registrations to verify:
+- Business active/inactive status
+- Formation dates
+- Registered agent information
+
+---
+
+### Ohio Checkbook (State Spending)
+
+*Coming soon* - Import Ohio state spending data for additional cross-referencing.
+
+---
 
 ## Project Structure
 
 ```
 ohio-fraud-tracker/
-├── src/
-│   ├── data_sources/       # API clients for each data source
-│   │   ├── usaspending.py
-│   │   ├── sba_ppp.py
-│   │   ├── sbir.py
-│   │   └── ohio_checkbook.py
-│   ├── models/             # Database models
-│   ├── services/           # Business logic
-│   └── api/                # FastAPI endpoints
-├── tests/
-├── data/                   # Local data cache
+├── api/                        # FastAPI backend
+│   ├── app/
+│   │   ├── main.py            # FastAPI app entry point
+│   │   ├── database.py        # Database connection
+│   │   ├── models.py          # SQLAlchemy models
+│   │   ├── schemas.py         # Pydantic schemas
+│   │   └── routers/           # API endpoints
+│   │       ├── awards.py
+│   │       ├── recipients.py
+│   │       └── stats.py
+│   ├── scripts/               # Import scripts
+│   │   ├── import_usaspending.py
+│   │   └── import_sba_ppp.py
+│   └── data/                  # Local data files
+│       └── sba_ppp/           # PPP CSV files go here
+├── frontend/                  # Astro frontend
+│   ├── src/
+│   │   ├── layouts/
+│   │   ├── pages/
+│   │   ├── lib/api.ts        # API client
+│   │   └── styles/
+│   └── package.json
+├── src/                       # Shared data source clients
+│   └── data_sources/
+│       └── usaspending.py
 ├── requirements.txt
 └── README.md
 ```
 
-## Setup
+## Database Schema
 
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+### Core Tables
 
-# Install dependencies
-pip install -r requirements.txt
+- **recipients** - Businesses/organizations receiving awards
+- **awards** - Individual grants, loans, contracts
+- **agencies** - Federal agencies (HHS, DOT, SBA, etc.)
+- **sub_agencies** - Agency subdivisions
 
-# Copy environment template
-cp .env.example .env
+### Key Fields
+
+**Awards:**
+- `source` - Data source (usaspending, sba_ppp)
+- `source_award_id` - Unique ID from source system
+- `award_type` - grant, loan, contract, etc.
+- `amount` - Dollar amount
+- `award_date` - Date of award
+
+**Recipients:**
+- `name` / `name_normalized` - Business name
+- `business_status` - active, inactive, unknown
+- `uei` / `ein` - Federal identifiers
+- `ohio_entity_number` - Ohio SOS entity number
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/stats` | Dashboard statistics |
+| `GET /api/awards` | List/search awards |
+| `GET /api/grants` | List grants only |
+| `GET /api/loans` | List loans only |
+| `GET /api/recipients` | List/search recipients |
+| `GET /api/recipients/{id}` | Recipient details |
+| `GET /api/recipients/{id}/awards` | Awards for recipient |
+| `GET /api/recipients/flagged` | Flagged recipients |
+
+## Fraud Detection Features
+
+### Current
+- Cross-reference recipient business status
+- Identify inactive businesses receiving awards
+- Track award concentrations by recipient
+
+### Planned
+- Ohio SOS business registry integration
+- Address clustering detection
+- Temporal pattern analysis
+- PPP forgiveness anomaly detection
+
+## Environment Variables
+
+Create a `.env` file in the `api/` directory:
+
+```env
+# Database (optional - defaults to local SQLite)
+TURSO_DATABASE_URL=libsql://your-db.turso.io
+TURSO_AUTH_TOKEN=your-token
+
+# Debug
+SQL_ECHO=false
 ```
 
-## Usage
+## Contributing
 
-```python
-from src.data_sources.usaspending import USASpendingClient
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
 
-client = USASpendingClient()
+## License
 
-# Get all grants to Ohio
-grants = client.get_awards_by_state("OH", award_types=["grants"])
-
-# Get specific recipient
-recipient_awards = client.get_awards_by_recipient("Some Company LLC", state="OH")
-```
+MIT License

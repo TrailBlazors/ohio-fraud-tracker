@@ -185,3 +185,204 @@ async def get_stats_by_city(
         }
         for row in query
     ]
+
+
+@router.get("/stats/data-coverage")
+async def get_data_coverage(db: Session = Depends(get_db)):
+    """
+    Get data coverage info: year ranges and counts by source
+    """
+    from sqlalchemy import extract, func, and_
+    
+    # Get year ranges and counts by source
+    sources = {}
+    
+    # Get distinct sources
+    source_list = db.query(Award.source).distinct().all()
+    
+    for (source,) in source_list:
+        # Get min/max year and count for this source
+        stats = db.query(
+            func.min(func.strftime("%Y", Award.award_date)).label("min_year"),
+            func.max(func.strftime("%Y", Award.award_date)).label("max_year"),
+            func.count(Award.id).label("count"),
+            func.sum(Award.amount).label("total")
+        ).filter(
+            Award.source == source,
+            Award.award_date.isnot(None)
+        ).first()
+        
+        sources[source] = {
+            "min_year": stats.min_year,
+            "max_year": stats.max_year,
+            "count": stats.count or 0,
+            "total": float(stats.total or 0)
+        }
+    
+    return {
+        "sources": sources,
+        "total_awards": db.query(func.count(Award.id)).scalar() or 0,
+        "total_amount": float(db.query(func.sum(Award.amount)).scalar() or 0)
+    }
+
+
+@router.get("/stats/data-status")
+async def get_data_status(db: Session = Depends(get_db)):
+    """
+    Get comprehensive data status for the Data Status page.
+    Shows all sources, record counts, date ranges, and import history.
+    """
+    from app.models import DataImport, NaicsCode
+    
+    # Source metadata (descriptions and URLs)
+    SOURCE_INFO = {
+        "usaspending": {
+            "name": "USAspending.gov",
+            "description": "Federal grants, loans, and contracts",
+            "url": "https://usaspending.gov",
+            "types": ["grants", "loans", "contracts"]
+        },
+        "sba_ppp": {
+            "name": "SBA PPP Loans",
+            "description": "Paycheck Protection Program loans (COVID-19)",
+            "url": "https://data.sba.gov/dataset/ppp-foia",
+            "types": ["loans"]
+        },
+        "sba_eidl": {
+            "name": "SBA EIDL Loans",
+            "description": "Economic Injury Disaster Loans",
+            "url": "https://data.sba.gov",
+            "types": ["loans"]
+        },
+        "ohio_checkbook": {
+            "name": "Ohio Checkbook",
+            "description": "Ohio state spending data",
+            "url": "https://checkbook.ohio.gov",
+            "types": ["state_spending"]
+        },
+        "ohio_sos": {
+            "name": "Ohio Secretary of State",
+            "description": "Business registration and status",
+            "url": "https://www.ohiosos.gov/businesses/",
+            "types": ["business_registry"]
+        }
+    }
+    
+    # Get stats for each source
+    sources = []
+    source_list = db.query(Award.source).distinct().all()
+    active_sources = {s[0] for s in source_list}
+    
+    for source_key, info in SOURCE_INFO.items():
+        if source_key in active_sources:
+            # Get detailed stats for this source
+            stats = db.query(
+                func.count(Award.id).label("count"),
+                func.sum(Award.amount).label("total"),
+                func.min(Award.award_date).label("min_date"),
+                func.max(Award.award_date).label("max_date"),
+                func.min(Award.created_at).label("first_import"),
+                func.max(Award.created_at).label("last_import")
+            ).filter(Award.source == source_key).first()
+            
+            # Get year breakdown
+            year_breakdown = db.query(
+                func.strftime("%Y", Award.award_date).label("year"),
+                func.count(Award.id).label("count"),
+                func.sum(Award.amount).label("total")
+            ).filter(
+                Award.source == source_key,
+                Award.award_date.isnot(None)
+            ).group_by("year").order_by("year").all()
+            
+            # Get award type breakdown for this source
+            type_breakdown = db.query(
+                Award.award_type,
+                func.count(Award.id).label("count"),
+                func.sum(Award.amount).label("total")
+            ).filter(Award.source == source_key).group_by(Award.award_type).all()
+            
+            sources.append({
+                "key": source_key,
+                "name": info["name"],
+                "description": info["description"],
+                "url": info["url"],
+                "status": "active",
+                "record_count": stats.count or 0,
+                "total_amount": float(stats.total or 0),
+                "date_range": {
+                    "min": stats.min_date.isoformat() if stats.min_date else None,
+                    "max": stats.max_date.isoformat() if stats.max_date else None
+                },
+                "import_info": {
+                    "first_import": stats.first_import.isoformat() if stats.first_import else None,
+                    "last_import": stats.last_import.isoformat() if stats.last_import else None
+                },
+                "by_year": [
+                    {"year": row.year, "count": row.count, "total": float(row.total or 0)}
+                    for row in year_breakdown
+                ],
+                "by_type": [
+                    {"type": row.award_type, "count": row.count, "total": float(row.total or 0)}
+                    for row in type_breakdown
+                ]
+            })
+        else:
+            # Source not yet imported
+            sources.append({
+                "key": source_key,
+                "name": info["name"],
+                "description": info["description"],
+                "url": info["url"],
+                "status": "pending",
+                "record_count": 0,
+                "total_amount": 0,
+                "date_range": None,
+                "import_info": None,
+                "by_year": [],
+                "by_type": []
+            })
+    
+    # Get recipient stats
+    recipient_stats = db.query(
+        func.count(Recipient.id).label("total"),
+        func.count(Recipient.naics_code).label("with_naics"),
+        func.count(Recipient.business_type).label("with_business_type")
+    ).first()
+    
+    # Count recipients by status
+    status_breakdown = db.query(
+        Recipient.business_status,
+        func.count(Recipient.id).label("count")
+    ).group_by(Recipient.business_status).all()
+    
+    # Get NAICS code count
+    naics_count = 0
+    try:
+        naics_count = db.query(func.count(NaicsCode.code)).scalar() or 0
+    except:
+        pass
+    
+    # Database totals
+    totals = {
+        "total_awards": db.query(func.count(Award.id)).scalar() or 0,
+        "total_amount": float(db.query(func.sum(Award.amount)).scalar() or 0),
+        "total_recipients": recipient_stats.total or 0,
+        "recipients_with_naics": recipient_stats.with_naics or 0,
+        "total_agencies": db.query(func.count(Agency.id)).scalar() or 0,
+        "naics_codes_loaded": naics_count
+    }
+    
+    return {
+        "sources": sources,
+        "totals": totals,
+        "recipients": {
+            "total": recipient_stats.total or 0,
+            "with_naics": recipient_stats.with_naics or 0,
+            "with_business_type": recipient_stats.with_business_type or 0,
+            "by_status": [
+                {"status": row.business_status, "count": row.count}
+                for row in status_breakdown
+            ]
+        }
+    }

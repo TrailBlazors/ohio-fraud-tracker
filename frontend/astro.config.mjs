@@ -1,20 +1,20 @@
-// @ts-check
 import { defineConfig } from 'astro/config';
+import tailwind from '@astrojs/tailwind';
+import node from '@astrojs/node';
 
-// https://astro.build/config
 export default defineConfig({
-  // Output static HTML by default (can deploy anywhere)
-  output: 'static',
-  
-  // Development server settings
+  integrations: [tailwind()],
+  output: 'server',
+  adapter: node({
+    mode: 'standalone',
+  }),
   server: {
     port: 3000,
-    host: true
+    host: true,
   },
-  
-  // Build settings
-  build: {
-    // Generate clean URLs (/grants instead of /grants.html)
-    format: 'directory'
-  }
+  vite: {
+    define: {
+      'import.meta.env.PUBLIC_API_URL': JSON.stringify(process.env.PUBLIC_API_URL || 'http://localhost:8000'),
+    },
+  },
 });

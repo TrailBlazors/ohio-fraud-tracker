@@ -1,426 +1,253 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+import { getStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate } from '../lib/api';
 
-// Sample data - in production this would come from your API/database
-const stats = {
-  totalGrants: 45892,
-  totalAmount: 12847293847,
-  uniqueRecipients: 8234,
-  topAgencies: [
-    { name: "Health and Human Services", amount: 4283948372, count: 12847 },
-    { name: "Department of Education", amount: 2847293847, count: 8234 },
-    { name: "Department of Agriculture", amount: 1284729384, count: 5892 },
-    { name: "Department of Transportation", amount: 982374982, count: 2847 },
-    { name: "Environmental Protection Agency", amount: 473829472, count: 1923 },
-  ],
-  recentAwards: [
-    { recipient: "Ohio State University", amount: 15847293, agency: "NIH", date: "2024-12-15", description: "Cancer research grant" },
-    { recipient: "Cleveland Clinic Foundation", amount: 8473920, agency: "HHS", date: "2024-12-14", description: "Healthcare innovation" },
-    { recipient: "Case Western Reserve University", amount: 5847293, agency: "NSF", date: "2024-12-13", description: "Engineering research" },
-    { recipient: "City of Columbus", amount: 4283948, agency: "DOT", date: "2024-12-12", description: "Infrastructure improvement" },
-    { recipient: "Cincinnati Children's Hospital", amount: 3847293, agency: "NIH", date: "2024-12-11", description: "Pediatric research" },
-  ]
-};
+let stats;
+let error = null;
 
-function formatCurrency(amount: number): string {
-  if (amount >= 1e9) return `$${(amount / 1e9).toFixed(1)}B`;
-  if (amount >= 1e6) return `$${(amount / 1e6).toFixed(1)}M`;
-  if (amount >= 1e3) return `$${(amount / 1e3).toFixed(1)}K`;
-  return `$${amount.toFixed(0)}`;
-}
-
-function formatNumber(num: number): string {
-  return num.toLocaleString();
+try {
+  stats = await getStats();
+} catch (e) {
+  error = 'Unable to load dashboard data. Make sure the API is running.';
+  stats = {
+    total_awards: 0,
+    total_amount: 0,
+    total_recipients: 0,
+    total_flagged: 0,
+    awards_by_type: {},
+    awards_by_source: {},
+    top_agencies: [],
+    recent_awards: [],
+  };
 }
 ---
 
-<BaseLayout title="Home">
-  <div class="container">
-    <!-- Hero Section -->
-    <section class="hero">
-      <h1>Follow the Money</h1>
-      <p class="hero-subtitle">
-        Track federal grants, loans, and contracts flowing into Ohio. 
-        See where your tax dollars go and who's receiving them.
-      </p>
-      <div class="hero-actions">
-        <a href="/grants" class="btn btn-primary">Browse Grants</a>
-        <a href="/search" class="btn btn-secondary">Search Recipients</a>
-      </div>
-    </section>
-    
-    <!-- Stats Overview -->
-    <section class="stats-grid">
-      <div class="stat-card">
-        <span class="stat-value">{formatCurrency(stats.totalAmount)}</span>
-        <span class="stat-label">Total Federal Funding</span>
-        <span class="stat-period">FY 2024</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value">{formatNumber(stats.totalGrants)}</span>
-        <span class="stat-label">Awards</span>
-        <span class="stat-period">Grants, Loans & Contracts</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value">{formatNumber(stats.uniqueRecipients)}</span>
-        <span class="stat-label">Recipients</span>
-        <span class="stat-period">Organizations & Entities</span>
-      </div>
-      <div class="stat-card highlight">
-        <span class="stat-value">39</span>
-        <span class="stat-label">Failed Commitments</span>
-        <span class="stat-period">Companies missing job targets</span>
-      </div>
-    </section>
-    
-    <!-- Two Column Layout -->
-    <div class="two-col">
-      <!-- Top Agencies -->
-      <section class="card">
-        <h2>Top Awarding Agencies</h2>
-        <div class="agency-list">
-          {stats.topAgencies.map((agency, i) => (
-            <div class="agency-row">
-              <span class="agency-rank">#{i + 1}</span>
-              <div class="agency-info">
-                <span class="agency-name">{agency.name}</span>
-                <span class="agency-count">{formatNumber(agency.count)} awards</span>
-              </div>
-              <span class="agency-amount">{formatCurrency(agency.amount)}</span>
-            </div>
-          ))}
+<DashboardLayout title="Dashboard">
+  <!-- Error banner -->
+  {error && (
+    <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+      <span class="font-medium">Error:</span> {error}
+    </div>
+  )}
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="stat-card">
+      <div class="flex items-center">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md shadow-blue-500/20">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+          </svg>
         </div>
-        <a href="/grants?sort=agency" class="card-link">View all agencies →</a>
-      </section>
-      
-      <!-- Recent Awards -->
-      <section class="card">
-        <h2>Recent Awards</h2>
-        <div class="awards-list">
-          {stats.recentAwards.map(award => (
-            <div class="award-row">
-              <div class="award-info">
-                <span class="award-recipient">{award.recipient}</span>
-                <span class="award-desc">{award.description}</span>
-              </div>
-              <div class="award-meta">
-                <span class="award-amount">{formatCurrency(award.amount)}</span>
-                <span class="award-agency">{award.agency}</span>
-              </div>
-            </div>
-          ))}
+        <div class="ms-4">
+          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Total Funding</h3>
+          <p class="text-2xl font-bold text-gray-900 dark:text-white">${formatNumber(stats.total_amount)}</p>
         </div>
-        <a href="/grants?sort=date" class="card-link">View all awards →</a>
-      </section>
+      </div>
     </div>
     
-    <!-- Call to Action -->
-    <section class="cta">
-      <h2>What We Track</h2>
-      <div class="cta-grid">
-        <div class="cta-item">
-          <span class="cta-icon">💰</span>
-          <h3>Federal Grants</h3>
-          <p>Block grants, project grants, cooperative agreements from all federal agencies</p>
+    <div class="stat-card">
+      <div class="flex items-center">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md shadow-green-500/20">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z" clip-rule="evenodd"></path>
+          </svg>
         </div>
-        <div class="cta-item">
-          <span class="cta-icon">🏦</span>
-          <h3>Loans</h3>
-          <p>SBA loans, PPP/EIDL COVID relief, federal direct and guaranteed loans</p>
-        </div>
-        <div class="cta-item">
-          <span class="cta-icon">📋</span>
-          <h3>Contracts</h3>
-          <p>Federal procurement contracts awarded to Ohio businesses</p>
-        </div>
-        <div class="cta-item">
-          <span class="cta-icon">🔍</span>
-          <h3>Business Status</h3>
-          <p>Cross-referenced with Ohio Secretary of State business filings</p>
+        <div class="ms-4">
+          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Total Awards</h3>
+          <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_awards.toLocaleString()}</p>
         </div>
       </div>
-    </section>
-  </div>
-</BaseLayout>
-
-<style>
-  .hero {
-    text-align: center;
-    padding: 3rem 0 4rem;
-  }
-  
-  .hero h1 {
-    font-size: 3rem;
-    font-weight: 700;
-    margin: 0 0 1rem;
-    background: linear-gradient(135deg, var(--color-primary), #8b5cf6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  .hero-subtitle {
-    font-size: 1.25rem;
-    color: var(--color-text-muted);
-    max-width: 600px;
-    margin: 0 auto 2rem;
-  }
-  
-  .hero-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    transition: all 0.2s;
-  }
-  
-  .btn-primary {
-    background: var(--color-primary);
-    color: white;
-  }
-  
-  .btn-primary:hover {
-    background: var(--color-primary-hover);
-    text-decoration: none;
-  }
-  
-  .btn-secondary {
-    background: var(--color-bg-tertiary);
-    color: var(--color-text);
-  }
-  
-  .btn-secondary:hover {
-    background: var(--color-border);
-    text-decoration: none;
-  }
-  
-  /* Stats Grid */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-  }
-  
-  .stat-card {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  
-  .stat-card.highlight {
-    border-color: var(--color-warning);
-    background: rgba(245, 158, 11, 0.1);
-  }
-  
-  .stat-value {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--color-text);
-  }
-  
-  .stat-label {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-  }
-  
-  .stat-period {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    opacity: 0.7;
-  }
-  
-  /* Two Column Layout */
-  .two-col {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-  }
-  
-  .card {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-  }
-  
-  .card h2 {
-    margin: 0 0 1rem;
-    font-size: 1.25rem;
-    font-weight: 600;
-  }
-  
-  .card-link {
-    display: block;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--color-border);
-    font-weight: 500;
-    font-size: 0.875rem;
-  }
-  
-  /* Agency List */
-  .agency-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .agency-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  
-  .agency-row:last-child {
-    border-bottom: none;
-  }
-  
-  .agency-rank {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--color-text-muted);
-    width: 2rem;
-  }
-  
-  .agency-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .agency-name {
-    font-weight: 500;
-    font-size: 0.9rem;
-  }
-  
-  .agency-count {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
-  
-  .agency-amount {
-    font-weight: 600;
-    color: var(--color-success);
-  }
-  
-  /* Awards List */
-  .awards-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .award-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  
-  .award-row:last-child {
-    border-bottom: none;
-  }
-  
-  .award-info {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-  }
-  
-  .award-recipient {
-    font-weight: 500;
-    font-size: 0.9rem;
-  }
-  
-  .award-desc {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
-  
-  .award-meta {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .award-amount {
-    font-weight: 600;
-    color: var(--color-success);
-  }
-  
-  .award-agency {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
-  
-  /* CTA Section */
-  .cta {
-    text-align: center;
-    padding: 2rem 0;
-  }
-  
-  .cta h2 {
-    font-size: 1.5rem;
-    margin: 0 0 2rem;
-  }
-  
-  .cta-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
-  }
-  
-  .cta-item {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    text-align: center;
-  }
-  
-  .cta-icon {
-    font-size: 2.5rem;
-    display: block;
-    margin-bottom: 0.75rem;
-  }
-  
-  .cta-item h3 {
-    margin: 0 0 0.5rem;
-    font-size: 1rem;
-  }
-  
-  .cta-item p {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
-  }
-  
-  @media (max-width: 768px) {
-    .hero h1 {
-      font-size: 2rem;
-    }
+    </div>
     
-    .two-col {
-      grid-template-columns: 1fr;
+    <div class="stat-card">
+      <div class="flex items-center">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md shadow-purple-500/20">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+          </svg>
+        </div>
+        <div class="ms-4">
+          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Recipients</h3>
+          <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_recipients.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stat-card">
+      <div class="flex items-center">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-md shadow-red-500/20">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
+          </svg>
+        </div>
+        <div class="ms-4">
+          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Flagged</h3>
+          <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_flagged.toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+    <!-- Awards by Type -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Awards by Type</h3>
+      <div id="awards-by-type-chart"></div>
+      {Object.keys(stats.awards_by_type).length === 0 && (
+        <p class="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
+      )}
+    </div>
+    
+    <!-- Top Agencies -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Agencies by Funding</h3>
+      <div class="space-y-3">
+        {stats.top_agencies.slice(0, 8).map((agency) => (
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class={`chip ${getAgencyChipClass(agency.code)}`}>{agency.code}</span>
+              <p class="text-sm text-gray-600 dark:text-gray-400 truncate">{agency.name}</p>
+            </div>
+            <div class="text-right flex-shrink-0 ml-4">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">${formatNumber(agency.total_amount)}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{agency.total_awards.toLocaleString()} awards</p>
+            </div>
+          </div>
+        ))}
+        {stats.top_agencies.length === 0 && (
+          <p class="text-gray-500 dark:text-gray-400 text-center py-4">No agency data available</p>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Awards Table -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+    <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Awards</h3>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left">
+        <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+          <tr class="text-gray-600 dark:text-gray-300">
+            <th class="px-4 py-3 w-1/3">Recipient</th>
+            <th class="px-4 py-3 w-20 text-center">Agency</th>
+            <th class="px-4 py-3 w-36 text-center">Type</th>
+            <th class="px-4 py-3 w-28 text-right">Amount</th>
+            <th class="px-4 py-3 w-28 text-right">Date</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+          {stats.recent_awards.map((award) => (
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <td class="px-4 py-3">
+                <div class="font-medium text-gray-900 dark:text-white truncate">{award.recipient_name}</div>
+                {award.recipient_city && (
+                  <div class="text-xs text-gray-500 dark:text-gray-400">{award.recipient_city}</div>
+                )}
+              </td>
+              <td class="px-4 py-3 text-center">
+                {award.agency_code ? (
+                  <span class={`chip ${getAgencyChipClass(award.agency_code)}`}>
+                    {award.agency_code}
+                  </span>
+                ) : (
+                  <span class="text-gray-400">—</span>
+                )}
+              </td>
+              <td class="px-4 py-3 text-center">
+                <span class={`chip ${getAwardTypeChipClass(award.award_type)}`}>
+                  <span class="chip-icon">{getAwardTypeIcon(award.award_type)}</span>
+                  {getAwardTypeName(award.award_type)}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+                {formatCurrency(award.amount)}
+              </td>
+              <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                {formatDate(award.award_date)}
+              </td>
+            </tr>
+          ))}
+          {stats.recent_awards.length === 0 && (
+            <tr>
+              <td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                No recent awards found
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+    <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+      <a href="/grants" class="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+        View all awards →
+      </a>
+    </div>
+  </div>
+
+  <!-- ApexCharts for Awards by Type -->
+  <script is:inline src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script is:inline define:vars={{ awardsData: stats.awards_by_type }}>
+    if (Object.keys(awardsData).length > 0) {
+      const labels = Object.keys(awardsData).map(type => {
+        const names = {
+          block_grant: 'Block Grant',
+          formula_grant: 'Formula Grant',
+          project_grant: 'Project Grant',
+          cooperative_agreement: 'Cooperative',
+          direct_loan: 'Direct Loan',
+          guaranteed_loan: 'Guaranteed Loan',
+          direct_payment: 'Direct Payment',
+          loan: 'PPP Loan',
+          other: 'Other',
+        };
+        return names[type] || type;
+      });
+      
+      const series = Object.values(awardsData).map(d => d.count);
+      
+      const options = {
+        series: series,
+        labels: labels,
+        chart: {
+          type: 'donut',
+          height: 300,
+        },
+        colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b'],
+        legend: {
+          position: 'bottom',
+          labels: {
+            colors: '#9ca3af',
+          },
+        },
+        plotOptions: {
+          pie: {
+            donut: {
+              size: '60%',
+            },
+          },
+        },
+        dataLabels: {
+          enabled: false,
+        },
+        responsive: [{
+          breakpoint: 480,
+          options: {
+            chart: {
+              height: 250,
+            },
+            legend: {
+              position: 'bottom',
+            },
+          },
+        }],
+      };
+
+      const chart = new ApexCharts(document.querySelector("#awards-by-type-chart"), options);
+      chart.render();
     }
-  }
-</style>
+  </script>
+</DashboardLayout>

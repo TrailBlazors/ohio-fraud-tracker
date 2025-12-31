@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import get_db_info, init_db
-from app.routers import awards, recipients, stats, health
+from app.routers import awards, recipients, stats, health, naics, correlation
 
 # =============================================================================
 # APP CONFIGURATION
@@ -46,6 +46,8 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(stats.router, prefix="/api", tags=["Statistics"])
 app.include_router(awards.router, prefix="/api", tags=["Awards"])
 app.include_router(recipients.router, prefix="/api", tags=["Recipients"])
+app.include_router(naics.router, prefix="/api", tags=["Business Types"])
+app.include_router(correlation.router, prefix="/api", tags=["Correlation & Fraud Detection"])
 
 
 # =============================================================================

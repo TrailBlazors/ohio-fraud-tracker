@@ -1,184 +1,141 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+import { getAwards, formatCurrency, formatDate, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass } from '../lib/api';
+
+const url = new URL(Astro.request.url);
+const q = url.searchParams.get('q') || '';
+
+let results = null;
+let error = null;
+
+if (q) {
+  try {
+    results = await getAwards({ q, page_size: 50 });
+  } catch (e) {
+    error = 'Search failed. Make sure the API is running.';
+  }
+}
 ---
 
-<BaseLayout title="Search">
-  <div class="container">
-    <h1>Search Recipients & Awards</h1>
-    <p class="subtitle">Find specific businesses, organizations, or awards</p>
-    
-    <div class="search-box">
-      <div class="search-input-wrapper">
-        <input 
-          type="text" 
-          id="searchInput" 
-          placeholder="Search by recipient name, city, or keyword..." 
-          autofocus
-        />
-        <button class="search-btn">🔍 Search</button>
-      </div>
-      
-      <div class="search-examples">
-        <span>Try:</span>
-        <button class="example-btn">Ohio State University</button>
-        <button class="example-btn">Cleveland</button>
-        <button class="example-btn">healthcare</button>
-        <button class="example-btn">infrastructure</button>
-      </div>
-    </div>
-    
-    <div class="search-options">
-      <h2>Search By</h2>
-      <div class="options-grid">
-        <a href="/grants" class="option-card">
-          <span class="option-icon">💰</span>
-          <span class="option-title">Grants</span>
-          <span class="option-desc">Federal grants and cooperative agreements</span>
-        </a>
-        <a href="/loans" class="option-card">
-          <span class="option-icon">🏦</span>
-          <span class="option-title">Loans</span>
-          <span class="option-desc">SBA loans, PPP, EIDL</span>
-        </a>
-        <div class="option-card disabled">
-          <span class="option-icon">📋</span>
-          <span class="option-title">Contracts</span>
-          <span class="option-desc">Coming soon</span>
-        </div>
-        <div class="option-card disabled">
-          <span class="option-icon">🏢</span>
-          <span class="option-title">Recipients</span>
-          <span class="option-desc">Coming soon</span>
+<DashboardLayout title="Search">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Search</h1>
+    <p class="text-gray-500 dark:text-gray-400">Find grants, loans, and recipients across all data sources</p>
+  </div>
+
+  <!-- Search Box -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+    <form method="get" class="flex gap-4">
+      <div class="flex-1">
+        <label for="q" class="sr-only">Search</label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <input type="text" id="q" name="q" value={q}
+            class="block w-full p-4 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+            placeholder="Search by recipient name, keyword, city..." />
         </div>
       </div>
+      <button type="submit" class="px-6 py-4 text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm dark:bg-primary-600 dark:hover:bg-primary-700">
+        Search
+      </button>
+    </form>
+    
+    <!-- Quick searches -->
+    <div class="mt-4 flex flex-wrap gap-2">
+      <span class="text-sm text-gray-500 dark:text-gray-400">Try:</span>
+      <a href="?q=Ohio State University" class="text-sm text-primary-600 hover:underline dark:text-primary-400">Ohio State University</a>
+      <a href="?q=Cleveland" class="text-sm text-primary-600 hover:underline dark:text-primary-400">Cleveland</a>
+      <a href="?q=hospital" class="text-sm text-primary-600 hover:underline dark:text-primary-400">hospital</a>
+      <a href="?q=transportation" class="text-sm text-primary-600 hover:underline dark:text-primary-400">transportation</a>
     </div>
   </div>
-</BaseLayout>
 
-<style>
-  h1 {
-    margin-bottom: 0.5rem;
-  }
-  
-  .subtitle {
-    color: var(--color-text-muted);
-    margin-bottom: 2rem;
-  }
-  
-  .search-box {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: 2rem;
-    margin-bottom: 2rem;
-  }
-  
-  .search-input-wrapper {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-  
-  .search-input-wrapper input {
-    flex: 1;
-    padding: 1rem;
-    font-size: 1.125rem;
-    border: 2px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-bg);
-    color: var(--color-text);
-  }
-  
-  .search-input-wrapper input:focus {
-    outline: none;
-    border-color: var(--color-primary);
-  }
-  
-  .search-btn {
-    padding: 1rem 1.5rem;
-    background: var(--color-primary);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  
-  .search-btn:hover {
-    background: var(--color-primary-hover);
-  }
-  
-  .search-examples {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
-  }
-  
-  .example-btn {
-    padding: 0.25rem 0.75rem;
-    background: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    color: var(--color-text);
-    font-size: 0.875rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  
-  .example-btn:hover {
-    background: var(--color-border);
-  }
-  
-  .search-options h2 {
-    font-size: 1.25rem;
-    margin-bottom: 1rem;
-  }
-  
-  .options-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-  
-  .option-card {
-    display: flex;
-    flex-direction: column;
-    padding: 1.5rem;
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    text-decoration: none;
-    transition: all 0.2s;
-  }
-  
-  .option-card:hover:not(.disabled) {
-    border-color: var(--color-primary);
-    transform: translateY(-2px);
-  }
-  
-  .option-card.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  
-  .option-icon {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .option-title {
-    font-weight: 600;
-    color: var(--color-text);
-    margin-bottom: 0.25rem;
-  }
-  
-  .option-desc {
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
-  }
-</style>
+  {error && (
+    <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+      <span class="font-medium">Error:</span> {error}
+    </div>
+  )}
+
+  <!-- Results -->
+  {results && (
+    <div>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+        Found {results.total_count.toLocaleString()} results for "<span class="font-medium text-gray-900 dark:text-white">{q}</span>"
+      </p>
+      
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+              <tr class="text-gray-600 dark:text-gray-300">
+                <th class="px-3 py-2">Recipient</th>
+                <th class="px-3 py-2 w-16 text-center">Agency</th>
+                <th class="px-3 py-2 w-32 text-center">Type</th>
+                <th class="px-3 py-2 w-24 text-right">Amount</th>
+                <th class="px-3 py-2 w-24 text-right">Date</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              {results.items.map((award) => (
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td class="px-3 py-2">
+                    <div class="font-medium text-gray-900 dark:text-white truncate max-w-xs">{award.recipient_name}</div>
+                    {award.recipient_city && (
+                      <div class="text-xs text-gray-500 dark:text-gray-400">{award.recipient_city}</div>
+                    )}
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    {award.agency_code ? (
+                      <span class={`chip text-xs ${getAgencyChipClass(award.agency_code)}`}>
+                        {award.agency_code}
+                      </span>
+                    ) : (
+                      <span class="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <span class={`chip text-xs ${getAwardTypeChipClass(award.award_type)}`}>
+                      {getAwardTypeName(award.award_type)}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+                    {formatCurrency(award.amount)}
+                  </td>
+                  <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                    {formatDate(award.award_date)}
+                  </td>
+                </tr>
+              ))}
+              {results.items.length === 0 && (
+                <tr>
+                  <td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No results found for "{q}"
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {results.total_count > 50 && (
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
+          Showing first 50 results. <a href={`/grants?q=${encodeURIComponent(q)}`} class="text-primary-600 hover:underline dark:text-primary-400">View all in Grants →</a>
+        </p>
+      )}
+    </div>
+  )}
+
+  {!q && (
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+      <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+      </svg>
+      <p class="text-gray-500 dark:text-gray-400">Enter a search term to find awards and recipients</p>
+    </div>
+  )}
+</DashboardLayout>

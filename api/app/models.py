@@ -77,6 +77,10 @@ class Recipient(Base):
     name = Column(String(255), nullable=False, index=True)
     name_normalized = Column(String(255), index=True)  # Lowercase, stripped for matching
     
+    # Business classification
+    naics_code = Column(String(6), nullable=True, index=True)  # e.g., "484121" for trucking
+    business_type = Column(String(100), nullable=True)  # e.g., "Corporation", "LLC", "Sole Proprietorship"
+    
     # Location
     address = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True, index=True)
@@ -100,6 +104,24 @@ class Recipient(Base):
     __table_args__ = (
         Index("ix_recipients_name_city", "name_normalized", "city"),
         Index("ix_recipients_status", "business_status"),
+        Index("ix_recipients_naics", "naics_code"),
+    )
+
+
+class NaicsCode(Base):
+    """
+    NAICS (North American Industry Classification System) lookup table.
+    Used to provide human-readable industry descriptions.
+    """
+    __tablename__ = "naics_codes"
+    
+    code = Column(String(6), primary_key=True)  # e.g., "484121"
+    title = Column(String(255), nullable=False)  # e.g., "General Freight Trucking, Long-Distance, Truckload"
+    sector = Column(String(2), nullable=True)  # First 2 digits, e.g., "48" for Transportation
+    sector_title = Column(String(255), nullable=True)  # e.g., "Transportation and Warehousing"
+    
+    __table_args__ = (
+        Index("ix_naics_sector", "sector"),
     )
 
 

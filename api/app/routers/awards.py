@@ -68,6 +68,12 @@ def build_award_query(db: Session, params: AwardSearchParams):
     if params.cfda_number:
         query = query.filter(Award.cfda_number == params.cfda_number)
     
+    # NAICS code filter (business type search)
+    if hasattr(params, 'naics_code') and params.naics_code:
+        # Support partial match (e.g., "484" matches all trucking)
+        naics_term = f"{params.naics_code}%"
+        query = query.filter(Recipient.naics_code.like(naics_term))
+    
     return query
 
 

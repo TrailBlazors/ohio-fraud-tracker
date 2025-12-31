@@ -15,7 +15,6 @@ import logging
 from typing import Optional, List, Dict, Any, Generator
 from dataclasses import dataclass, asdict
 from datetime import datetime, date
-from enum import Enum
 import json
 
 import requests
@@ -35,10 +34,11 @@ logger = logging.getLogger(__name__)
 
 # Award Type Codes - these are used in API filters
 GRANT_TYPES = ["02", "03", "04", "05"]  # Block, Formula, Project, Cooperative
-LOAN_TYPES = ["07", "08", "09"]  # Direct, Guaranteed, Insurance
+LOAN_TYPES = ["07", "08"]  # Direct Loan, Guaranteed Loan (09 is Insurance, not a loan)
 CONTRACT_TYPES = ["A", "B", "C", "D"]  # Various contract types
 DIRECT_PAYMENT_TYPES = ["06", "10"]  # Unrestricted, Specified use
-ALL_FINANCIAL_ASSISTANCE = GRANT_TYPES + LOAN_TYPES + DIRECT_PAYMENT_TYPES + ["11"]
+OTHER_ASSISTANCE_TYPES = ["09", "11"]  # Insurance, Other
+ALL_FINANCIAL_ASSISTANCE = GRANT_TYPES + LOAN_TYPES + DIRECT_PAYMENT_TYPES + OTHER_ASSISTANCE_TYPES
 
 # US State and Territory codes
 US_STATES = {
@@ -82,70 +82,70 @@ STATE_FIPS = {
 class USASpendingConfig:
     """Configuration for USAspending API client"""
     base_url: str = "https://api.usaspending.gov/api/v2"
-    timeout: int = 30
-    max_retries: int = 3
-    rate_limit_per_minute: int = 120
+    timeout: int = 60  # Increased timeout
+    max_retries: int = 5  # More retries
+    rate_limit_per_minute: int = 30  # Slower - was 120
     page_size: int = 100
+    retry_delay: float = 5.0  # Delay between retries
 
 
 @dataclass
 class Award:
     """Represents a single award from USAspending"""
     award_id: str
-    generated_unique_award_id: str
+    generated_internal_id: str
     recipient_name: str
-    recipient_uei: Optional[str]
-    recipient_duns: Optional[str]
-    recipient_address: Optional[str]
     recipient_city: Optional[str]
-    recipient_state: str
-    recipient_zip: Optional[str]
-    recipient_country: str
+    recipient_state: Optional[str]
     awarding_agency: str
     awarding_sub_agency: Optional[str]
     award_type: str
     total_obligation: float
-    total_outlays: Optional[float]
     description: str
     start_date: Optional[str]
     end_date: Optional[str]
-    last_modified_date: Optional[str]
     cfda_number: Optional[str]
     place_of_performance_city: Optional[str]
     place_of_performance_state: Optional[str]
-    place_of_performance_zip: Optional[str]
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         return asdict(self)
     
     @classmethod
-    def from_api_response(cls, data: Dict[str, Any]) -> "Award":
+    def from_api_response(cls, data: Dict[str, Any], is_loans: bool = False) -> "Award":
         """Create Award from USAspending API response"""
+        
+        # Get amount - loans use different field names
+        amount = 0.0
+        for field in ["Award Amount", "Subsidy Cost", "Face Value of Loan", "Total Loan Value"]:
+            if data.get(field):
+                try:
+                    amount = float(data.get(field, 0) or 0)
+                    if amount != 0:
+                        break
+                except (ValueError, TypeError):
+                    continue
+        
+        # Get date - loans use "Issued Date", grants use "Start Date"
+        start_date = data.get("Start Date") or data.get("Issued Date")
+        
         return cls(
             award_id=data.get("Award ID", "") or "",
-            generated_unique_award_id=data.get("generated_unique_award_id", "") or "",
+            generated_internal_id=data.get("generated_internal_id", "") or "",
             recipient_name=data.get("Recipient Name", "") or "",
-            recipient_uei=data.get("recipient_uei"),
-            recipient_duns=data.get("Recipient DUNS Number"),
-            recipient_address=data.get("recipient_address_line_1"),
-            recipient_city=data.get("recipient_city_name"),
-            recipient_state=data.get("recipient_state_code", "") or "",
-            recipient_zip=data.get("recipient_zip_4_code"),
-            recipient_country=data.get("recipient_country_code", "USA") or "USA",
+            recipient_city=data.get("recipient_city_name") or data.get("Recipient Location City"),
+            recipient_state=data.get("recipient_state_code") or data.get("Recipient Location State"),
             awarding_agency=data.get("Awarding Agency", "") or "",
             awarding_sub_agency=data.get("Awarding Sub Agency"),
             award_type=data.get("Award Type", "") or "",
-            total_obligation=float(data.get("Award Amount", 0) or 0),
-            total_outlays=float(data.get("Total Outlays", 0) or 0) if data.get("Total Outlays") else None,
+            total_obligation=amount,
             description=data.get("Description", "") or "",
-            start_date=data.get("Start Date"),
+            start_date=start_date,
             end_date=data.get("End Date"),
-            last_modified_date=data.get("Last Modified Date"),
-            cfda_number=data.get("cfda_number"),
-            place_of_performance_city=data.get("pop_city_name"),
-            place_of_performance_state=data.get("pop_state_code"),
-            place_of_performance_zip=data.get("pop_zip_4_code"),
+            cfda_number=data.get("cfda_number") or data.get("CFDA Number"),
+            place_of_performance_city=data.get("Place of Performance City"),
+            place_of_performance_state=data.get("Place of Performance State"),
         )
 
 
@@ -202,25 +202,6 @@ class ValidationError(USASpendingError):
 class USASpendingClient:
     """
     Client for the USAspending.gov API
-    
-    Example usage:
-        client = USASpendingClient()
-        
-        # Get all grants to Ohio
-        results = client.search_awards(state="OH", award_types=GRANT_TYPES)
-        
-        # Iterate through large result sets
-        for batch in client.iter_awards(state="OH", award_types=GRANT_TYPES):
-            for award in batch:
-                print(f"{award.recipient_name}: ${award.total_obligation:,.2f}")
-                
-        # Search by recipient name
-        results = client.search_awards(
-            recipient_name="Acme Corp",
-            state="OH",
-            start_date="2020-01-01",
-            end_date="2024-12-31"
-        )
     """
     
     def __init__(self, config: Optional[USASpendingConfig] = None):
@@ -234,9 +215,10 @@ class USASpendingClient:
         
         retry_strategy = Retry(
             total=self.config.max_retries,
-            backoff_factor=1,
+            backoff_factor=2,  # Exponential backoff: 2, 4, 8, 16 seconds
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET", "POST"]
+            allowed_methods=["GET", "POST"],
+            raise_on_status=False  # Don't raise, let us handle it
         )
         
         adapter = HTTPAdapter(max_retries=retry_strategy)
@@ -269,7 +251,7 @@ class USASpendingClient:
         payload: Optional[Dict] = None,
         params: Optional[Dict] = None
     ) -> Dict[str, Any]:
-        """Make an API request with error handling"""
+        """Make an API request with error handling and retry logic"""
         self._rate_limit()
         
         url = f"{self.config.base_url}/{endpoint.lstrip('/')}"
@@ -278,37 +260,65 @@ class USASpendingClient:
         if payload:
             logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
         
-        try:
-            if method.upper() == "GET":
-                response = self._session.get(
-                    url, 
-                    params=params, 
-                    timeout=self.config.timeout
-                )
-            else:
-                response = self._session.post(
-                    url, 
-                    json=payload, 
-                    timeout=self.config.timeout
-                )
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                if method.upper() == "GET":
+                    response = self._session.get(
+                        url, 
+                        params=params, 
+                        timeout=self.config.timeout
+                    )
+                else:
+                    response = self._session.post(
+                        url, 
+                        json=payload, 
+                        timeout=self.config.timeout
+                    )
+                    
+                if response.status_code == 429:
+                    wait_time = 60  # Wait a minute on rate limit
+                    logger.warning(f"Rate limited, waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
                 
-            if response.status_code == 429:
-                raise RateLimitError("API rate limit exceeded. Please wait before retrying.")
+                # Log 422 errors with full response for debugging
+                if response.status_code == 422:
+                    logger.error(f"422 Unprocessable Entity. Response: {response.text}")
+                    logger.error(f"Request payload was: {json.dumps(payload, indent=2)}")
+                    
+                response.raise_for_status()
+                return response.json()
                 
-            response.raise_for_status()
-            return response.json()
-            
-        except requests.exceptions.HTTPError as e:
-            error_body = e.response.text if e.response else None
-            logger.error(f"HTTP error: {e}, Response: {error_body}")
-            raise APIError(
-                f"HTTP error: {str(e)}", 
-                status_code=e.response.status_code if e.response else None,
-                response_body=error_body
-            )
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            raise APIError(f"Request failed: {str(e)}")
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_attempts - 1:
+                    wait_time = self.config.retry_delay * (attempt + 1)
+                    logger.warning(f"Connection error (attempt {attempt + 1}/{max_attempts}), retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    # Recreate session to get fresh connection
+                    self._session = self._create_session()
+                    continue
+                logger.error(f"Request failed after {max_attempts} attempts: {e}")
+                raise APIError(f"Request failed: {str(e)}")
+                
+            except requests.exceptions.HTTPError as e:
+                error_body = e.response.text if e.response else None
+                logger.error(f"HTTP error: {e}, Response: {error_body}")
+                raise APIError(
+                    f"HTTP error: {str(e)}", 
+                    status_code=e.response.status_code if e.response else None,
+                    response_body=error_body
+                )
+            except requests.exceptions.RequestException as e:
+                if attempt < max_attempts - 1:
+                    wait_time = self.config.retry_delay * (attempt + 1)
+                    logger.warning(f"Request error (attempt {attempt + 1}/{max_attempts}), retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                logger.error(f"Request failed: {e}")
+                raise APIError(f"Request failed: {str(e)}")
+        
+        raise APIError("Max retries exceeded")
     
     def _validate_state(self, state: str) -> str:
         """Validate and normalize state code"""
@@ -328,7 +338,6 @@ class USASpendingClient:
         end_date: Optional[str] = None,
         agencies: Optional[List[str]] = None,
         recipient_name: Optional[str] = None,
-        recipient_uei: Optional[str] = None,
         keywords: Optional[List[str]] = None,
         cfda_numbers: Optional[List[str]] = None,
         location_type: str = "recipient"
@@ -353,7 +362,7 @@ class USASpendingClient:
         # Time period filter
         if start_date or end_date:
             time_period = {
-                "start_date": start_date or "2007-10-01",  # FY2008 start
+                "start_date": start_date or "2007-10-01",
                 "end_date": end_date or date.today().isoformat()
             }
             filters["time_period"] = [time_period]
@@ -368,9 +377,6 @@ class USASpendingClient:
         # Recipient search
         if recipient_name:
             filters["recipient_search_text"] = recipient_name
-            
-        if recipient_uei:
-            filters["recipient_id"] = recipient_uei
             
         # Keyword search
         if keywords:
@@ -387,16 +393,7 @@ class USASpendingClient:
     # =========================================================================
     
     def get_state_totals(self, state: str, fiscal_year: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Get spending totals for a state
-        
-        Args:
-            state: Two-letter state code (e.g., "OH")
-            fiscal_year: Optional fiscal year (e.g., 2024)
-            
-        Returns:
-            Dictionary with total amounts by award type
-        """
+        """Get spending totals for a state"""
         state = self._validate_state(state)
         fips = STATE_FIPS.get(state)
         
@@ -418,34 +415,10 @@ class USASpendingClient:
         location_type: str = "recipient",
         limit: int = 100,
         page: int = 1,
-        sort_field: str = "Award Amount",
+        sort_field: Optional[str] = None,
         sort_direction: str = "desc"
     ) -> SearchResults:
-        """
-        Search for awards with flexible filtering
-        
-        Args:
-            state: Two-letter state code (e.g., "OH", "CA", "TX")
-            award_types: List of award type codes. Use constants:
-                - GRANT_TYPES: ["02", "03", "04", "05"]
-                - LOAN_TYPES: ["07", "08", "09"]
-                - CONTRACT_TYPES: ["A", "B", "C", "D"]
-                - ALL_FINANCIAL_ASSISTANCE: All non-contract types
-            start_date: Start date (YYYY-MM-DD format)
-            end_date: End date (YYYY-MM-DD format)
-            agencies: List of awarding agency names
-            recipient_name: Partial match on recipient name
-            keywords: Search terms for award descriptions
-            cfda_numbers: CFDA/Assistance Listing numbers
-            location_type: "recipient" or "place_of_performance"
-            limit: Results per page (max 100)
-            page: Page number (1-based)
-            sort_field: Field to sort by
-            sort_direction: "asc" or "desc"
-            
-        Returns:
-            SearchResults object with awards and pagination info
-        """
+        """Search for awards with flexible filtering"""
         filters = self._build_filters(
             state=state,
             award_types=award_types,
@@ -458,43 +431,54 @@ class USASpendingClient:
             location_type=location_type
         )
         
-        # Ensure we have at least one filter
         if not filters:
             raise ValidationError("At least one filter parameter is required")
         
-        fields = [
-            "Award ID",
-            "Recipient Name",
-            "recipient_uei",
-            "recipient_id",
-            "Recipient DUNS Number",
-            "recipient_address_line_1",
-            "recipient_city_name",
-            "recipient_state_code",
-            "recipient_zip_4_code",
-            "recipient_country_code",
-            "Start Date",
-            "End Date",
-            "Award Amount",
-            "Total Outlays",
-            "Awarding Agency",
-            "Awarding Sub Agency",
-            "Award Type",
-            "Description",
-            "Last Modified Date",
-            "cfda_number",
-            "generated_unique_award_id",
-            "pop_city_name",
-            "pop_state_code",
-            "pop_zip_4_code"
-        ]
+        # Check if this is a loans query (07 = Direct Loan, 08 = Guaranteed Loan)
+        is_loans = award_types and all(t in ["07", "08"] for t in award_types)
+        
+        if is_loans:
+            # Loan-specific fields per USAspending API docs
+            # https://github.com/fedspendingtransparency/usaspending-api/blob/master/usaspending_api/api_contracts/contracts/v2/search/spending_by_award.md
+            fields = [
+                "Award ID",
+                "Recipient Name",
+                "Issued Date",
+                "Loan Value",
+                "Subsidy Cost",
+                "Awarding Agency",
+                "Awarding Sub Agency",
+                "Award Type",
+                "recipient_city_name",
+                "recipient_state_code",
+            ]
+            default_sort = "Loan Value"
+        else:
+            # Grant/other assistance fields
+            fields = [
+                "Award ID",
+                "Recipient Name",
+                "Start Date",
+                "End Date",
+                "Award Amount",
+                "Awarding Agency",
+                "Awarding Sub Agency",
+                "Award Type",
+                "Description",
+                "cfda_number",
+                "recipient_city_name",
+                "recipient_state_code",
+                "Place of Performance City",
+                "Place of Performance State",
+            ]
+            default_sort = "Award Amount"
         
         payload = {
             "filters": filters,
             "fields": fields,
             "limit": min(limit, 100),
             "page": page,
-            "sort": sort_field,
+            "sort": sort_field or default_sort,
             "order": sort_direction
         }
         
@@ -504,7 +488,7 @@ class USASpendingClient:
         awards = []
         for record in response.get("results", []):
             try:
-                awards.append(Award.from_api_response(record))
+                awards.append(Award.from_api_response(record, is_loans=is_loans))
             except Exception as e:
                 logger.warning(f"Failed to parse award: {e}")
         
@@ -530,23 +514,7 @@ class USASpendingClient:
         max_records: Optional[int] = None,
         **kwargs
     ) -> Generator[List[Award], None, None]:
-        """
-        Iterate through all awards with automatic pagination
-        
-        Use this for large result sets. Yields batches of Award objects.
-        
-        Args:
-            (same as search_awards)
-            max_records: Optional limit on total records
-            
-        Yields:
-            Lists of Award objects (batch size = 100)
-            
-        Example:
-            for batch in client.iter_awards(state="OH", award_types=GRANT_TYPES):
-                for award in batch:
-                    save_to_database(award)
-        """
+        """Iterate through all awards with automatic pagination"""
         page = 1
         total_retrieved = 0
         
@@ -574,7 +542,6 @@ class USASpendingClient:
             
             yield results.awards
             
-            # Check limits
             if max_records and total_retrieved >= max_records:
                 logger.info(f"Reached max_records limit: {max_records}")
                 break
@@ -593,22 +560,7 @@ class USASpendingClient:
         end_date: Optional[str] = None,
         max_records: int = 10000
     ) -> List[Award]:
-        """
-        Convenience method to get all awards as a single list
-        
-        Warning: Can be memory-intensive for large result sets.
-        Use iter_awards() for better memory efficiency.
-        
-        Args:
-            state: Two-letter state code
-            award_types: List of award type codes
-            start_date: Start date (YYYY-MM-DD)
-            end_date: End date (YYYY-MM-DD)
-            max_records: Safety limit (default 10,000)
-            
-        Returns:
-            List of Award objects
-        """
+        """Convenience method to get all awards as a single list"""
         all_awards = []
         
         for batch in self.iter_awards(
@@ -623,90 +575,10 @@ class USASpendingClient:
         return all_awards
     
     def search_recipients(self, keyword: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Autocomplete search for recipients
-        
-        Args:
-            keyword: Search term
-            limit: Max results
-            
-        Returns:
-            List of matching recipient summaries
-        """
+        """Autocomplete search for recipients"""
         payload = {"keyword": keyword, "limit": limit}
         response = self._make_request("POST", "/autocomplete/recipient/", payload=payload)
         return response.get("results", [])
-    
-    def get_recipient_profile(self, recipient_id: str) -> Dict[str, Any]:
-        """
-        Get detailed profile for a recipient
-        
-        Args:
-            recipient_id: The recipient hash ID or UEI
-            
-        Returns:
-            Full recipient profile
-        """
-        return self._make_request("GET", f"/recipient/{recipient_id}/")
-    
-    def get_award_details(self, award_id: str) -> Dict[str, Any]:
-        """
-        Get full details for a specific award
-        
-        Args:
-            award_id: The generated_unique_award_id
-            
-        Returns:
-            Complete award details
-        """
-        # Determine if contract or assistance
-        if award_id.startswith("CONT_"):
-            endpoint = f"/awards/contracts/{award_id}/"
-        else:
-            endpoint = f"/awards/assistance/{award_id}/"
-            
-        return self._make_request("GET", endpoint)
-    
-    def get_spending_by_category(
-        self,
-        state: str,
-        category: str = "awarding_agency",
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        award_types: Optional[List[str]] = None,
-        limit: int = 50
-    ) -> Dict[str, Any]:
-        """
-        Get spending grouped by category
-        
-        Args:
-            state: Two-letter state code
-            category: One of: awarding_agency, awarding_subagency, 
-                     recipient, cfda, county, district
-            start_date: Start date
-            end_date: End date
-            award_types: Award type filter
-            limit: Max categories to return
-            
-        Returns:
-            Spending broken down by category
-        """
-        state = self._validate_state(state)
-        
-        filters = self._build_filters(
-            state=state,
-            award_types=award_types,
-            start_date=start_date,
-            end_date=end_date
-        )
-        
-        payload = {
-            "filters": filters,
-            "category": category,
-            "limit": limit
-        }
-        
-        return self._make_request("POST", "/search/spending_by_category/", payload=payload)
 
 
 # =============================================================================
@@ -718,17 +590,7 @@ def get_ohio_grants(
     end_date: Optional[str] = None,
     max_records: int = 1000
 ) -> List[Award]:
-    """
-    Quick function to get Ohio grants
-    
-    Args:
-        start_date: Start date (YYYY-MM-DD)
-        end_date: End date (YYYY-MM-DD)
-        max_records: Max records to retrieve
-        
-    Returns:
-        List of Award objects
-    """
+    """Quick function to get Ohio grants"""
     client = USASpendingClient()
     return client.get_all_awards(
         state="OH",
@@ -745,18 +607,7 @@ def get_state_grants(
     end_date: Optional[str] = None,
     max_records: int = 1000
 ) -> List[Award]:
-    """
-    Quick function to get grants for any state
-    
-    Args:
-        state: Two-letter state code
-        start_date: Start date (YYYY-MM-DD)
-        end_date: End date (YYYY-MM-DD)
-        max_records: Max records to retrieve
-        
-    Returns:
-        List of Award objects
-    """
+    """Quick function to get grants for any state"""
     client = USASpendingClient()
     return client.get_all_awards(
         state=state,
@@ -767,27 +618,13 @@ def get_state_grants(
     )
 
 
-# =============================================================================
-# CLI / TESTING
-# =============================================================================
-
 if __name__ == "__main__":
-    # Simple test
     print("Testing USAspending API Client...")
     print("=" * 60)
     
     client = USASpendingClient()
     
-    # Test 1: Get state totals
-    print("\n1. Getting Ohio state totals...")
-    try:
-        totals = client.get_state_totals("OH", fiscal_year=2024)
-        print(f"   Total prime awards: ${totals.get('total_prime_amount', 0):,.2f}")
-    except Exception as e:
-        print(f"   Error: {e}")
-    
-    # Test 2: Search for grants
-    print("\n2. Searching for Ohio grants (2024)...")
+    print("\nSearching for Ohio grants (2024)...")
     try:
         results = client.search_awards(
             state="OH",
@@ -796,27 +633,18 @@ if __name__ == "__main__":
             end_date="2024-12-31",
             limit=5
         )
-        print(f"   Found {results.total_count} total grants")
-        print(f"   First page has {len(results.awards)} results")
+        print(f"Found {results.total_count} total grants")
+        print(f"First page has {len(results.awards)} results")
         
         if results.awards:
-            print("\n   Top 5 grants:")
+            print("\nTop 5 grants:")
             for award in results.awards[:5]:
-                print(f"   - {award.recipient_name}: ${award.total_obligation:,.2f}")
-                print(f"     Agency: {award.awarding_agency}")
-                print(f"     Description: {award.description[:80]}...")
+                print(f"- {award.recipient_name}: ${award.total_obligation:,.2f}")
+                print(f"  Agency: {award.awarding_agency}")
+                print(f"  City: {award.recipient_city}, {award.recipient_state}")
                 print()
     except Exception as e:
-        print(f"   Error: {e}")
+        print(f"Error: {e}")
     
-    # Test 3: Search by recipient
-    print("\n3. Searching for recipients matching 'Ohio State'...")
-    try:
-        recipients = client.search_recipients("Ohio State University", limit=5)
-        for r in recipients:
-            print(f"   - {r}")
-    except Exception as e:
-        print(f"   Error: {e}")
-    
-    print("\n" + "=" * 60)
-    print("Tests complete!")
+    print("=" * 60)
+    print("Test complete!")
