@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
 from app.database import get_db
-from app.models import Award, Recipient, Agency, FraudFlag
+from app.models import Award, Recipient, Agency, FraudFlag, CachedStats
 from app.schemas import DashboardStats, AwardListItem, AgencySummary
 
 router = APIRouter()
@@ -32,6 +32,204 @@ def get_cached(key: str):
 def set_cached(key: str, value: Any):
     """Store value in cache with current timestamp."""
     _cache[key] = (time.time(), value)
+
+
+@router.get("/stats/quick")
+async def get_quick_stats(db: Session = Depends(get_db)):
+    """
+    Fast stats for initial page load - reads from cache table.
+    If cache is empty, falls back to computing (slower).
+    """
+    import json
+    
+    # Check memory cache first
+    cached = get_cached("quick_stats")
+    if cached:
+        return cached
+    
+    # Try to read from database cache
+    cache_rows = db.query(CachedStats).filter(
+        CachedStats.stat_key.in_([
+            "total_awards", "total_amount", "total_recipients", 
+            "total_flagged", "total_flags_ever", "awards_by_source"
+        ])
+    ).all()
+    
+    if cache_rows:
+        cache_dict = {row.stat_key: row for row in cache_rows}
+        
+        total_awards = int(cache_dict.get("total_awards", CachedStats(stat_value=0)).stat_value)
+        total_flags_ever = int(cache_dict.get("total_flags_ever", CachedStats(stat_value=0)).stat_value)
+        
+        if total_flags_ever > 0:
+            correlation_status = "run"
+        elif total_awards > 0:
+            correlation_status = "not_run"
+        else:
+            correlation_status = "no_data"
+        
+        awards_by_source = {}
+        if "awards_by_source" in cache_dict and cache_dict["awards_by_source"].stat_json:
+            awards_by_source = json.loads(cache_dict["awards_by_source"].stat_json)
+        
+        result = {
+            "total_awards": total_awards,
+            "total_amount": cache_dict.get("total_amount", CachedStats(stat_value=0)).stat_value,
+            "total_recipients": int(cache_dict.get("total_recipients", CachedStats(stat_value=0)).stat_value),
+            "total_flagged": int(cache_dict.get("total_flagged", CachedStats(stat_value=0)).stat_value),
+            "correlation_status": correlation_status,
+            "awards_by_source": awards_by_source,
+        }
+        set_cached("quick_stats", result)
+        return result
+    
+    # Fallback: compute stats (slow)
+    totals = db.query(
+        func.count(Award.id).label("total_awards"),
+        func.sum(Award.amount).label("total_amount")
+    ).first()
+    
+    total_recipients = db.query(func.count(Recipient.id)).scalar() or 0
+    total_flagged = db.query(func.count(FraudFlag.id)).filter(
+        FraudFlag.is_resolved == False
+    ).scalar() or 0
+    
+    total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
+    total_awards = totals.total_awards or 0
+    if total_flags_ever > 0:
+        correlation_status = "run"
+    elif total_awards > 0:
+        correlation_status = "not_run"
+    else:
+        correlation_status = "no_data"
+    
+    source_query = db.query(
+        Award.source,
+        func.count(Award.id).label("count"),
+        func.sum(Award.amount).label("total")
+    ).group_by(Award.source).all()
+    
+    awards_by_source = {
+        row.source: {"count": row.count, "total": float(row.total or 0)}
+        for row in source_query
+    }
+    
+    result = {
+        "total_awards": total_awards,
+        "total_amount": float(totals.total_amount or 0),
+        "total_recipients": total_recipients,
+        "total_flagged": total_flagged,
+        "correlation_status": correlation_status,
+        "awards_by_source": awards_by_source,
+    }
+    set_cached("quick_stats", result)
+    return result
+
+
+@router.get("/stats/top-agencies")
+async def get_top_agencies(db: Session = Depends(get_db)):
+    """Top agencies - reads from cache if available."""
+    import json
+    
+    cached = get_cached("top_agencies")
+    if cached:
+        return cached
+    
+    # Try database cache
+    cache_row = db.query(CachedStats).filter(CachedStats.stat_key == "top_agencies").first()
+    if cache_row and cache_row.stat_json:
+        result = json.loads(cache_row.stat_json)
+        set_cached("top_agencies", result)
+        return result
+    
+    # Fallback: compute
+    agency_query = db.query(
+        Agency.id,
+        Agency.code,
+        Agency.name,
+        func.count(Award.id).label("total_awards"),
+        func.sum(Award.amount).label("total_amount")
+    ).join(Award, Award.agency_id == Agency.id)\
+     .group_by(Agency.id)\
+     .order_by(desc("total_amount"))\
+     .limit(10).all()
+    
+    result = [
+        {
+            "id": row.id,
+            "code": row.code,
+            "name": row.name,
+            "total_awards": row.total_awards,
+            "total_amount": float(row.total_amount or 0)
+        }
+        for row in agency_query
+    ]
+    set_cached("top_agencies", result)
+    return result
+
+
+@router.get("/stats/recent-awards")
+async def get_recent_awards(db: Session = Depends(get_db)):
+    """Recent awards - loaded separately for speed."""
+    cached = get_cached("recent_awards")
+    if cached:
+        return cached
+    
+    recent_query = db.query(Award, Recipient, Agency)\
+        .join(Recipient, Award.recipient_id == Recipient.id)\
+        .outerjoin(Agency, Award.agency_id == Agency.id)\
+        .order_by(desc(Award.award_date))\
+        .limit(10).all()
+    
+    result = [
+        {
+            "id": award.id,
+            "source": award.source,
+            "award_type": award.award_type,
+            "amount": award.amount,
+            "description": award.description,
+            "recipient_name": recipient.name,
+            "recipient_city": recipient.city,
+            "agency_code": agency.code if agency else None,
+            "agency_name": agency.name if agency else None,
+            "award_date": award.award_date.isoformat() if award.award_date else None,
+            "cfda_number": award.cfda_number
+        }
+        for award, recipient, agency in recent_query
+    ]
+    set_cached("recent_awards", result)
+    return result
+
+
+@router.get("/stats/awards-by-type")
+async def get_awards_by_type(db: Session = Depends(get_db)):
+    """Awards by type breakdown - reads from cache if available."""
+    import json
+    
+    cached = get_cached("awards_by_type")
+    if cached:
+        return cached
+    
+    # Try database cache
+    cache_row = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_type").first()
+    if cache_row and cache_row.stat_json:
+        result = json.loads(cache_row.stat_json)
+        set_cached("awards_by_type", result)
+        return result
+    
+    # Fallback: compute
+    type_query = db.query(
+        Award.award_type,
+        func.count(Award.id).label("count"),
+        func.sum(Award.amount).label("total")
+    ).group_by(Award.award_type).all()
+    
+    result = {
+        row.award_type: {"count": row.count, "total": float(row.total or 0)}
+        for row in type_query
+    }
+    set_cached("awards_by_type", result)
+    return result
 
 
 @router.get("/stats", response_model=DashboardStats)

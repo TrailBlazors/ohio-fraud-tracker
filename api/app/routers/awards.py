@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, asc, or_
 
 from app.database import get_db
-from app.models import Award, Recipient, Agency, SubAgency
+from app.models import Award, Recipient, Agency, SubAgency, CachedStats
 from app.schemas import (
     AwardListResponse, 
     AwardListItem, 
@@ -114,6 +114,7 @@ async def list_awards(
     page_size: int = Query(25, ge=1, le=100),
     sort_by: str = Query("amount", description="Sort field"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    skip_count: bool = Query(False, description="Skip total count for faster response"),
     db: Session = Depends(get_db)
 ):
     """
@@ -127,6 +128,7 @@ async def list_awards(
     - start_date/end_date: Date range
     - city: Recipient city
     - source: Data source (usaspending, sba_ppp, etc.)
+    - skip_count: Skip total count for faster initial load
     """
     
     params = AwardSearchParams(
@@ -147,11 +149,42 @@ async def list_awards(
         sort_order=sort_order
     )
     
+    # Check if query has any filters
+    has_filters = any([
+        q, recipient_id, agency_code, award_type, 
+        min_amount, max_amount, start_date, end_date, 
+        city, cfda_number, source
+    ])
+    
     # Build query
     query = build_award_query(db, params)
     
-    # Get total count
-    total_count = query.count()
+    # Get total count - use cached value for simple queries
+    if skip_count:
+        # Estimate: assume there's more data
+        total_count = page * page_size + page_size
+    elif not has_filters:
+        # Use cached total for unfiltered query
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == "total_awards").first()
+        if cached:
+            total_count = int(cached.stat_value)
+        else:
+            total_count = query.count()
+    elif source and not any([q, recipient_id, agency_code, award_type, min_amount, max_amount, start_date, end_date, city, cfda_number]):
+        # Only source filter - use cached source count
+        import json
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_source").first()
+        if cached and cached.stat_json:
+            source_data = json.loads(cached.stat_json)
+            if source in source_data:
+                total_count = source_data[source]["count"]
+            else:
+                total_count = query.count()
+        else:
+            total_count = query.count()
+    else:
+        # Filtered query - need actual count
+        total_count = query.count()
     
     # Apply sorting and pagination
     query = apply_sorting(query, sort_by, sort_order)
@@ -244,29 +277,32 @@ async def list_grants(
     max_amount: Optional[float] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    source: Optional[str] = Query(None, description="Filter by source"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     sort_by: str = Query("amount"),
     sort_order: str = Query("desc"),
+    skip_count: bool = Query(False),
     db: Session = Depends(get_db)
 ):
     """
-    List grants only (convenience endpoint)
+    List grants/awards (convenience endpoint)
     """
     return await list_awards(
         q=q,
         agency_code=agency_code,
-        award_type=None,  # Will filter to grant types below
+        award_type=None,
         city=city,
         min_amount=min_amount,
         max_amount=max_amount,
         start_date=start_date,
         end_date=end_date,
-        source="usaspending",  # Grants come from USAspending
+        source=source,  # Allow filtering by source
         page=page,
         page_size=page_size,
         sort_by=sort_by,
         sort_order=sort_order,
+        skip_count=skip_count,
         db=db,
         recipient_id=None,
         cfda_number=None

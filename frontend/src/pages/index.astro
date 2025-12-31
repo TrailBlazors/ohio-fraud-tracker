@@ -1,12 +1,12 @@
 ---
 import DashboardLayout from '../layouts/DashboardLayout.astro';
-import { getStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate, getSourceName } from '../lib/api';
+import { getQuickStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate, getSourceName } from '../lib/api';
 
 let stats;
 let error = null;
 
 try {
-  stats = await getStats();
+  stats = await getQuickStats();
 } catch (e) {
   error = 'Unable to load dashboard data. Make sure the API is running.';
   stats = {
@@ -15,10 +15,7 @@ try {
     total_recipients: 0,
     total_flagged: 0,
     correlation_status: 'no_data',
-    awards_by_type: {},
     awards_by_source: {},
-    top_agencies: [],
-    recent_awards: [],
   };
 }
 
@@ -229,31 +226,28 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
     <!-- Awards by Type -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Awards by Type</h3>
-      <div id="awards-by-type-chart"></div>
-      {Object.keys(stats.awards_by_type).length === 0 && (
-        <p class="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
-      )}
+      <div id="awards-by-type-chart">
+        <div class="flex items-center justify-center py-8">
+          <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span class="ml-2 text-gray-500">Loading chart...</span>
+        </div>
+      </div>
     </div>
     
     <!-- Top Agencies -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Agencies by Funding</h3>
-      <div class="space-y-3">
-        {stats.top_agencies.slice(0, 8).map((agency) => (
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3 min-w-0">
-              <span class={`chip ${getAgencyChipClass(agency.code)}`}>{agency.code}</span>
-              <p class="text-sm text-gray-600 dark:text-gray-400 truncate">{agency.name}</p>
-            </div>
-            <div class="text-right flex-shrink-0 ml-4">
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">${formatNumber(agency.total_amount)}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">{agency.total_awards.toLocaleString()} awards</p>
-            </div>
-          </div>
-        ))}
-        {stats.top_agencies.length === 0 && (
-          <p class="text-gray-500 dark:text-gray-400 text-center py-4">No agency data available</p>
-        )}
+      <div id="top-agencies-list">
+        <div class="flex items-center justify-center py-8">
+          <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span class="ml-2 text-gray-500">Loading agencies...</span>
+        </div>
       </div>
     </div>
   </div>
@@ -263,68 +257,14 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
     <div class="p-6 border-b border-gray-200 dark:border-gray-700">
       <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Awards</h3>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm text-left">
-        <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
-          <tr class="text-gray-600 dark:text-gray-300">
-            <th class="px-4 py-3 w-1/3">Recipient</th>
-            <th class="px-4 py-3 w-16 text-center">Source</th>
-            <th class="px-4 py-3 w-20 text-center">Agency</th>
-            <th class="px-4 py-3 w-36 text-center">Type</th>
-            <th class="px-4 py-3 w-28 text-right">Amount</th>
-            <th class="px-4 py-3 w-28 text-right">Date</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-          {stats.recent_awards.map((award) => (
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-              <td class="px-4 py-3">
-                <div class="font-medium text-gray-900 dark:text-white truncate">{award.recipient_name}</div>
-                {award.recipient_city && (
-                  <div class="text-xs text-gray-500 dark:text-gray-400">{award.recipient_city}</div>
-                )}
-              </td>
-              <td class="px-4 py-3 text-center">
-                <span class={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
-                  award.source === 'usaspending' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
-                  award.source === 'ohio_checkbook' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' :
-                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                }`} title={getSourceName(award.source)}>
-                  {award.source === 'usaspending' ? '🇺🇸' : award.source === 'ohio_checkbook' ? '🏛️' : '📄'}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-center">
-                {award.agency_code ? (
-                  <span class={`chip ${getAgencyChipClass(award.agency_code)}`}>
-                    {award.agency_code}
-                  </span>
-                ) : (
-                  <span class="text-gray-400">—</span>
-                )}
-              </td>
-              <td class="px-4 py-3 text-center">
-                <span class={`chip ${getAwardTypeChipClass(award.award_type)}`}>
-                  <span class="chip-icon">{getAwardTypeIcon(award.award_type)}</span>
-                  {getAwardTypeName(award.award_type)}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-                {formatCurrency(award.amount)}
-              </td>
-              <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                {formatDate(award.award_date)}
-              </td>
-            </tr>
-          ))}
-          {stats.recent_awards.length === 0 && (
-            <tr>
-              <td colspan="6" class="text-center py-8 text-gray-500 dark:text-gray-400">
-                No recent awards found
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+    <div id="recent-awards-container">
+      <div class="flex items-center justify-center py-12">
+        <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="ml-2 text-gray-500">Loading recent awards...</span>
+      </div>
     </div>
     <div class="p-4 border-t border-gray-200 dark:border-gray-700">
       <a href="/grants" class="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
@@ -395,65 +335,169 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
 
   <!-- ApexCharts for Awards by Type -->
   <script is:inline src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <script is:inline define:vars={{ awardsData: stats.awards_by_type }}>
-    if (Object.keys(awardsData).length > 0) {
-      const labels = Object.keys(awardsData).map(type => {
-        const names = {
-          block_grant: 'Block Grant',
-          formula_grant: 'Formula Grant',
-          project_grant: 'Project Grant',
-          cooperative_agreement: 'Cooperative',
-          direct_loan: 'Direct Loan',
-          guaranteed_loan: 'Guaranteed Loan',
-          direct_payment: 'Direct Payment',
-          loan: 'PPP Loan',
-          contract: 'Contract',
-          other: 'Other',
-        };
-        return names[type] || type;
-      });
-      
-      const series = Object.values(awardsData).map(d => d.count);
-      
-      const options = {
-        series: series,
-        labels: labels,
-        chart: {
-          type: 'donut',
-          height: 300,
-        },
-        colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444'],
-        legend: {
-          position: 'bottom',
-          labels: {
-            colors: '#9ca3af',
-          },
-        },
-        plotOptions: {
-          pie: {
-            donut: {
-              size: '60%',
-            },
-          },
-        },
-        dataLabels: {
-          enabled: false,
-        },
-        responsive: [{
-          breakpoint: 480,
-          options: {
-            chart: {
-              height: 250,
-            },
-            legend: {
-              position: 'bottom',
-            },
-          },
-        }],
-      };
-
-      const chart = new ApexCharts(document.querySelector("#awards-by-type-chart"), options);
-      chart.render();
+  <script is:inline>
+    // Use relative URL in production, localhost in dev
+    const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+    
+    // Helper functions
+    function formatNumber(num) {
+      if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+      if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+      if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+      return num.toLocaleString();
     }
+    
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    }
+    
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: 'USD',
+        minimumFractionDigits: 0, maximumFractionDigits: 0
+      }).format(amount);
+    }
+    
+    // Load Awards by Type chart
+    async function loadAwardsByType() {
+      try {
+        const response = await fetch(`${apiBase}/api/stats/awards-by-type`);
+        const awardsData = await response.json();
+        
+        const chartEl = document.querySelector('#awards-by-type-chart');
+        if (!Object.keys(awardsData).length) {
+          chartEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>';
+          return;
+        }
+        
+        const typeNames = {
+          block_grant: 'Block Grant', formula_grant: 'Formula Grant',
+          project_grant: 'Project Grant', cooperative_agreement: 'Cooperative',
+          direct_loan: 'Direct Loan', guaranteed_loan: 'Guaranteed Loan',
+          direct_payment: 'Direct Payment', loan: 'PPP Loan',
+          contract: 'Contract', other: 'Other'
+        };
+        
+        const labels = Object.keys(awardsData).map(type => typeNames[type] || type);
+        const series = Object.values(awardsData).map(d => d.count);
+        
+        chartEl.innerHTML = '';
+        const chart = new ApexCharts(chartEl, {
+          series, labels,
+          chart: { type: 'donut', height: 300 },
+          colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444'],
+          legend: { position: 'bottom', labels: { colors: '#9ca3af' } },
+          plotOptions: { pie: { donut: { size: '60%' } } },
+          dataLabels: { enabled: false }
+        });
+        chart.render();
+      } catch (err) {
+        document.querySelector('#awards-by-type-chart').innerHTML = 
+          '<p class="text-gray-500 text-center py-8">Failed to load chart</p>';
+      }
+    }
+    
+    // Load Top Agencies
+    async function loadTopAgencies() {
+      try {
+        const response = await fetch(`${apiBase}/api/stats/top-agencies`);
+        const agencies = await response.json();
+        
+        const container = document.querySelector('#top-agencies-list');
+        if (!agencies.length) {
+          container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">No agency data available</p>';
+          return;
+        }
+        
+        container.innerHTML = '<div class="space-y-3">' + agencies.slice(0, 8).map(agency => `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="chip chip-agency">${agency.code}</span>
+              <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${agency.name}</p>
+            </div>
+            <div class="text-right flex-shrink-0 ml-4">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">${formatNumber(agency.total_amount)}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">${agency.total_awards.toLocaleString()} awards</p>
+            </div>
+          </div>
+        `).join('') + '</div>';
+      } catch (err) {
+        document.querySelector('#top-agencies-list').innerHTML = 
+          '<p class="text-gray-500 text-center py-4">Failed to load agencies</p>';
+      }
+    }
+    
+    // Load Recent Awards
+    async function loadRecentAwards() {
+      try {
+        const response = await fetch(`${apiBase}/api/stats/recent-awards`);
+        const awards = await response.json();
+        
+        const container = document.querySelector('#recent-awards-container');
+        if (!awards.length) {
+          container.innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">No recent awards found</p>';
+          return;
+        }
+        
+        const sourceIcons = { usaspending: '🇺🇸', ohio_checkbook: '🏛️', sba_ppp: '💼' };
+        const sourceClasses = {
+          usaspending: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+          ohio_checkbook: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
+        };
+        
+        container.innerHTML = `
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+                <tr class="text-gray-600 dark:text-gray-300">
+                  <th class="px-4 py-3 w-1/3">Recipient</th>
+                  <th class="px-4 py-3 w-16 text-center">Source</th>
+                  <th class="px-4 py-3 w-20 text-center">Agency</th>
+                  <th class="px-4 py-3 w-28 text-right">Amount</th>
+                  <th class="px-4 py-3 w-28 text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                ${awards.map(award => `
+                  <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="px-4 py-3">
+                      <div class="font-medium text-gray-900 dark:text-white truncate">${award.recipient_name}</div>
+                      ${award.recipient_city ? `<div class="text-xs text-gray-500 dark:text-gray-400">${award.recipient_city}</div>` : ''}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded ${sourceClasses[award.source] || 'bg-gray-100 text-gray-800'}">
+                        ${sourceIcons[award.source] || '📄'}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      ${award.agency_code ? `<span class="chip chip-agency">${award.agency_code}</span>` : '<span class="text-gray-400">—</span>'}
+                    </td>
+                    <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+                      ${formatCurrency(award.amount)}
+                    </td>
+                    <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                      ${formatDate(award.award_date)}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (err) {
+        document.querySelector('#recent-awards-container').innerHTML = 
+          '<p class="text-center py-8 text-gray-500">Failed to load recent awards</p>';
+      }
+    }
+    
+    // Load all lazy data
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAwardsByType();
+      loadTopAgencies();
+      loadRecentAwards();
+    });
   </script>
 </DashboardLayout>

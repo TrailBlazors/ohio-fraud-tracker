@@ -131,6 +131,43 @@ export async function getStats(): Promise<DashboardStats> {
 }
 
 /**
+ * Get quick stats for fast initial page load
+ */
+export interface QuickStats {
+  total_awards: number;
+  total_amount: number;
+  total_recipients: number;
+  total_flagged: number;
+  correlation_status: string;
+  awards_by_source: Record<string, { count: number; total: number }>;
+}
+
+export async function getQuickStats(): Promise<QuickStats> {
+  return apiRequest<QuickStats>('/api/stats/quick');
+}
+
+/**
+ * Get top agencies (lazy loaded)
+ */
+export async function getTopAgencies(): Promise<AgencySummary[]> {
+  return apiRequest<AgencySummary[]>('/api/stats/top-agencies');
+}
+
+/**
+ * Get recent awards (lazy loaded)
+ */
+export async function getRecentAwards(): Promise<Award[]> {
+  return apiRequest<Award[]>('/api/stats/recent-awards');
+}
+
+/**
+ * Get awards by type breakdown (lazy loaded)
+ */
+export async function getAwardsByType(): Promise<Record<string, { count: number; total: number }>> {
+  return apiRequest<Record<string, { count: number; total: number }>>('/api/stats/awards-by-type');
+}
+
+/**
  * Get awards with filtering and pagination
  */
 export async function getAwards(params: SearchParams = {}): Promise<PaginatedResponse<Award>> {

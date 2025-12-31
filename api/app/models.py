@@ -302,6 +302,20 @@ class DataImport(Base):
     )
 
 
+class CachedStats(Base):
+    """
+    Pre-computed stats for fast dashboard loading.
+    Updated periodically by a background job.
+    """
+    __tablename__ = "cached_stats"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stat_key = Column(String(50), unique=True, nullable=False)  # e.g., "total_awards", "source:usaspending"
+    stat_value = Column(Float, nullable=False)
+    stat_json = Column(Text, nullable=True)  # For complex stats (JSON)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
