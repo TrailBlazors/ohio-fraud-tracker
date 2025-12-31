@@ -2,7 +2,9 @@
  * API client for Ohio Fraud Tracker backend
  */
 
-const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+// In production (Vercel), API is on same domain so use relative path
+// In development, use localhost:8000
+const API_URL = import.meta.env.PUBLIC_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
 
 export interface Award {
   id: number;
@@ -42,6 +44,7 @@ export interface DashboardStats {
   total_amount: number;
   total_recipients: number;
   total_flagged: number;
+  correlation_status: string;  // not_run, run, no_data
   awards_by_type: Record<string, { count: number; total: number }>;
   awards_by_source: Record<string, { count: number; total: number }>;
   top_agencies: AgencySummary[];
@@ -62,6 +65,7 @@ export interface SearchParams {
   q?: string;
   agency_code?: string;
   award_type?: string;
+  source?: string;
   city?: string;
   min_amount?: number;
   max_amount?: number;
@@ -207,6 +211,28 @@ export async function getStatsByYear(): Promise<{ year: string; count: number; t
  */
 export async function getStatsByCity(limit = 20): Promise<{ city: string; count: number; total: number }[]> {
   return apiRequest<{ city: string; count: number; total: number }[]>(`/api/stats/by-city?limit=${limit}`);
+}
+
+/**
+ * Run correlation analysis
+ */
+export async function runCorrelation(): Promise<{ success: boolean; flags_found: number; flags_saved: number; error?: string }> {
+  return apiRequest<{ success: boolean; flags_found: number; flags_saved: number; error?: string }>('/api/correlation/run', {
+    method: 'POST',
+  });
+}
+
+/**
+ * Get fraud flags summary
+ */
+export async function getFlagsSummary(): Promise<{
+  total_flags: number;
+  unresolved: number;
+  resolved: number;
+  by_severity: Record<string, number>;
+  by_type: Record<string, number>;
+}> {
+  return apiRequest('/api/correlation/flags/summary');
 }
 
 /**

@@ -130,6 +130,60 @@ async def update_flag(
     return {"success": True, "flag_id": flag_id}
 
 
+@router.post("/correlation/run")
+async def run_correlation_analysis(
+    background_tasks: BackgroundTasks,
+    save: bool = Query(True, description="Save flags to database"),
+    db: Session = Depends(get_db)
+):
+    """
+    Run correlation analysis to detect fraud indicators.
+    
+    Scans for:
+    - Duplicate awards (same recipient, amount, date)
+    - Outlier amounts (5x above average)
+    - Multiple recipients at same address
+    """
+    import sys
+    from pathlib import Path
+    
+    # Add paths for imports
+    api_path = Path(__file__).parent.parent.parent
+    sys.path.insert(0, str(api_path))
+    sys.path.insert(0, str(api_path.parent))
+    
+    try:
+        from src.correlation.engine import CorrelationEngine
+        
+        engine = CorrelationEngine(db)
+        flags = engine.run_full_scan()
+        
+        saved_count = 0
+        if save and flags:
+            saved_count = engine.save_flags_to_db(flags)
+        
+        # Summarize results
+        by_type = {}
+        by_severity = {}
+        for flag in flags:
+            by_type[flag.flag_type.value] = by_type.get(flag.flag_type.value, 0) + 1
+            by_severity[flag.severity.value] = by_severity.get(flag.severity.value, 0) + 1
+        
+        return {
+            "success": True,
+            "flags_found": len(flags),
+            "flags_saved": saved_count,
+            "by_severity": by_severity,
+            "by_type": by_type
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.get("/correlation/multi-source")
 async def get_multi_source_recipients(
     min_sources: int = Query(2, ge=2),

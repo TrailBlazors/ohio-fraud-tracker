@@ -2,6 +2,9 @@
 Statistics and dashboard endpoints
 """
 
+import time
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
@@ -12,12 +15,35 @@ from app.schemas import DashboardStats, AwardListItem, AgencySummary
 
 router = APIRouter()
 
+# Simple in-memory cache with TTL
+_cache: dict[str, tuple[float, Any]] = {}
+CACHE_TTL = 300  # 5 minutes
+
+
+def get_cached(key: str):
+    """Get value from cache if not expired."""
+    if key in _cache:
+        timestamp, value = _cache[key]
+        if time.time() - timestamp < CACHE_TTL:
+            return value
+    return None
+
+
+def set_cached(key: str, value: Any):
+    """Store value in cache with current timestamp."""
+    _cache[key] = (time.time(), value)
+
 
 @router.get("/stats", response_model=DashboardStats)
 async def get_dashboard_stats(db: Session = Depends(get_db)):
     """
     Get homepage dashboard statistics
     """
+    # Check cache first
+    cached = get_cached("dashboard_stats")
+    if cached:
+        return cached
+    
     # Total counts
     total_awards = db.query(func.count(Award.id)).scalar() or 0
     total_amount = db.query(func.sum(Award.amount)).scalar() or 0
@@ -25,6 +51,15 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     total_flagged = db.query(func.count(FraudFlag.id)).filter(
         FraudFlag.is_resolved == False
     ).scalar() or 0
+    
+    # Determine correlation status
+    total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
+    if total_flags_ever > 0:
+        correlation_status = "run"
+    elif total_awards > 0:
+        correlation_status = "not_run"  # Has data but no correlation done
+    else:
+        correlation_status = "no_data"
     
     # Awards by type
     type_query = db.query(
@@ -97,16 +132,19 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
         for award, recipient, agency in recent_query
     ]
     
-    return DashboardStats(
+    result = DashboardStats(
         total_awards=total_awards,
         total_amount=float(total_amount),
         total_recipients=total_recipients,
         total_flagged=total_flagged,
+        correlation_status=correlation_status,
         awards_by_type=awards_by_type,
         awards_by_source=awards_by_source,
         top_agencies=top_agencies,
         recent_awards=recent_awards
     )
+    set_cached("dashboard_stats", result)
+    return result
 
 
 @router.get("/stats/agencies")
@@ -192,6 +230,11 @@ async def get_data_coverage(db: Session = Depends(get_db)):
     """
     Get data coverage info: year ranges and counts by source
     """
+    # Check cache first
+    cached = get_cached("data_coverage")
+    if cached:
+        return cached
+    
     from sqlalchemy import extract, func, and_
     
     # Get year ranges and counts by source
@@ -219,11 +262,13 @@ async def get_data_coverage(db: Session = Depends(get_db)):
             "total": float(stats.total or 0)
         }
     
-    return {
+    result = {
         "sources": sources,
         "total_awards": db.query(func.count(Award.id)).scalar() or 0,
         "total_amount": float(db.query(func.sum(Award.amount)).scalar() or 0)
     }
+    set_cached("data_coverage", result)
+    return result
 
 
 @router.get("/stats/data-status")
@@ -232,6 +277,11 @@ async def get_data_status(db: Session = Depends(get_db)):
     Get comprehensive data status for the Data Status page.
     Shows all sources, record counts, date ranges, and import history.
     """
+    # Check cache first
+    cached = get_cached("data_status")
+    if cached:
+        return cached
+    
     from app.models import DataImport, NaicsCode
     
     # Source metadata (descriptions and URLs)
@@ -373,7 +423,7 @@ async def get_data_status(db: Session = Depends(get_db)):
         "naics_codes_loaded": naics_count
     }
     
-    return {
+    result = {
         "sources": sources,
         "totals": totals,
         "recipients": {
@@ -386,3 +436,5 @@ async def get_data_status(db: Session = Depends(get_db)):
             ]
         }
     }
+    set_cached("data_status", result)
+    return result

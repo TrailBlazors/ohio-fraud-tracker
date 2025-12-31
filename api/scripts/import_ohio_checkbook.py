@@ -3,36 +3,29 @@ Ohio Checkbook Data Importer
 
 Imports state spending data from Ohio Checkbook (checkbook.ohio.gov) CSV exports.
 
-Since Ohio Checkbook doesn't have a public API, this script processes
-CSV files that users download manually from the website.
+Data Structure (checkbook_transactions_YYYY_MM_Mon.csv):
+- account, account_name
+- department_id, department_description
+- payment_date, payment_method, payment_reference_id
+- payment_amount
+- vendor_name, address1, address2, city, state, zip
+- transaction_month
 
-Data Sources:
-- State Expenses: checkbook.ohio.gov/State/
-- State Contracts: checkbook.ohio.gov/State/Expanded/StateContracts.aspx
-- State Salaries: checkbook.ohio.gov/Salaries/State.aspx
-
-How to Download Data:
-1. Go to checkbook.ohio.gov/State/
-2. Select filters (fiscal year, agency, etc.) or view all
-3. Click "Download CSV" button
-4. Save to data/ohio_checkbook/ folder
-
-CSV Column Mappings (may vary by export type):
-- State Expenses: Agency, Fund, Program, Expense Type, Amount, Date, Vendor
-- State Contracts: Vendor Name, Contract Amount, Agency, Start Date, End Date
+Key field for deduplication: payment_reference_id
 
 Usage:
-    python -m scripts.import_ohio_checkbook --file data/ohio_checkbook/state_expenses_2024.csv
-    python -m scripts.import_ohio_checkbook --folder data/ohio_checkbook/
+    python -m scripts.import_ohio_checkbook --folder ../data/ohio_checkbook/
+    python -m scripts.import_ohio_checkbook --file ../data/ohio_checkbook/checkbook_transactions_2022_01_Jan.csv
 """
 
 import sys
 import csv
 import argparse
+import re
 from pathlib import Path
 from datetime import datetime, date
-from typing import Optional, Dict, List, Any
-import re
+from typing import Optional, Dict, List, Set
+from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -45,69 +38,125 @@ from app.models import Award, Recipient, Agency, normalize_name
 
 
 # =============================================================================
-# COLUMN MAPPINGS
+# OHIO AGENCY MAPPING
 # =============================================================================
 
-# Different Ohio Checkbook exports have different columns
-# These mappings handle common variations
-
-EXPENSE_COLUMN_MAPPINGS = {
-    # Vendor/Payee columns
-    "vendor": ["Vendor", "Payee", "Vendor Name", "Payee Name", "VENDOR", "PAYEE"],
-    "vendor_city": ["Vendor City", "City", "VENDOR CITY"],
-    "vendor_state": ["Vendor State", "State", "VENDOR STATE"],
-    
-    # Amount columns  
-    "amount": ["Amount", "Total", "Payment Amount", "AMOUNT", "Total Amount", "Expense Amount"],
-    
-    # Date columns
-    "date": ["Date", "Payment Date", "Transaction Date", "Check Date", "DATE"],
-    "fiscal_year": ["Fiscal Year", "FY", "Year", "FISCAL YEAR"],
-    
-    # Agency/Department columns
-    "agency": ["Agency", "Department", "Agency Name", "AGENCY"],
-    "sub_agency": ["Sub-Agency", "Division", "Program", "SUB-AGENCY"],
-    
-    # Category columns
-    "expense_type": ["Expense Type", "Object", "Category", "EXPENSE TYPE"],
-    "fund": ["Fund", "Fund Name", "FUND"],
-    
-    # Description
-    "description": ["Description", "Memo", "Purpose", "DESCRIPTION"],
-}
-
-CONTRACT_COLUMN_MAPPINGS = {
-    "vendor": ["Vendor Name", "Vendor", "Contractor", "VENDOR NAME"],
-    "amount": ["Contract Amount", "Amount", "Total Amount", "CONTRACT AMOUNT"],
-    "agency": ["Agency", "Awarding Agency", "AGENCY"],
-    "start_date": ["Start Date", "Effective Date", "Begin Date", "START DATE"],
-    "end_date": ["End Date", "Expiration Date", "END DATE"],
-    "contract_number": ["Contract Number", "Contract ID", "CONTRACT NUMBER"],
-    "description": ["Description", "Contract Description", "Purpose", "DESCRIPTION"],
+OHIO_AGENCY_CODES = {
+    "EDU": "Department of Education",
+    "TAX": "Department of Taxation", 
+    "JFS": "Department of Job and Family Services",
+    "DOH": "Department of Health",
+    "DMH": "Department of Mental Health and Addiction Services",
+    "DOT": "Department of Transportation",
+    "DPS": "Department of Public Safety",
+    "DNR": "Department of Natural Resources",
+    "DAS": "Department of Administrative Services",
+    "AGR": "Department of Agriculture",
+    "COM": "Department of Commerce",
+    "DDD": "Department of Developmental Disabilities",
+    "DHE": "Department of Higher Education",
+    "DOI": "Department of Insurance",
+    "MCD": "Department of Medicaid",
+    "DRC": "Department of Rehabilitation and Correction",
+    "DVS": "Department of Veterans Services",
+    "DYS": "Department of Youth Services",
+    "EPA": "Environmental Protection Agency",
+    "BWC": "Bureau of Workers Compensation",
+    "LOT": "Ohio Lottery Commission",
+    "PUC": "Public Utilities Commission",
+    "AGO": "Attorney General",
+    "AOS": "Auditor of State",
+    "SOS": "Secretary of State",
+    "TOS": "Treasurer of State",
+    "GOV": "Governor's Office",
+    "OBM": "Office of Budget and Management",
+    "DEV": "Development Services Agency",
+    "CSR": "Casino Control Commission",
 }
 
 
-def find_column(row: Dict, possible_names: List[str]) -> Optional[str]:
-    """Find a column value by trying multiple possible names"""
-    for name in possible_names:
-        if name in row and row[name]:
-            return str(row[name]).strip()
-        # Try case-insensitive
-        for key in row.keys():
-            if key.lower() == name.lower() and row[key]:
-                return str(row[key]).strip()
-    return None
+def get_or_create_ohio_agency(db: Session, dept_id: str, dept_name: str, agency_cache: Dict) -> Optional[int]:
+    """Get or create Ohio agency with caching"""
+    if not dept_id:
+        return None
+    
+    cache_key = dept_id.upper()
+    if cache_key in agency_cache:
+        return agency_cache[cache_key]
+    
+    # Use the department_id as code
+    code = dept_id.upper()
+    name = dept_name or OHIO_AGENCY_CODES.get(code, f"Ohio {code}")
+    
+    agency = db.query(Agency).filter(Agency.code == code).first()
+    if not agency:
+        agency = Agency(code=code, name=name)
+        db.add(agency)
+        db.flush()
+    
+    agency_cache[cache_key] = agency.id
+    return agency.id
 
 
-def parse_amount(amount_str: Optional[str]) -> float:
-    """Parse amount string to float, handling currency formatting"""
+def get_or_create_recipient(
+    db: Session,
+    name: str,
+    address: str,
+    city: str,
+    state: str,
+    zip_code: str,
+    recipient_cache: Dict,
+    new_recipient_ids: Set
+) -> int:
+    """Get or create recipient with caching"""
+    if not name or name.strip() == "":
+        name = "Unknown Vendor"
+    
+    name = name.strip()[:255]
+    normalized = normalize_name(name)
+    city = (city or "").strip()[:100] if city else None
+    
+    # Cache key: normalized name + city
+    cache_key = f"{normalized}|{city or ''}"
+    if cache_key in recipient_cache:
+        return recipient_cache[cache_key]
+    
+    # Try to find existing
+    query = db.query(Recipient).filter(Recipient.name_normalized == normalized)
+    if city:
+        query = query.filter(Recipient.city == city)
+    
+    recipient = query.first()
+    
+    if not recipient:
+        # Build full address
+        full_address = None
+        if address:
+            full_address = address.strip()[:255]
+        
+        recipient = Recipient(
+            name=name,
+            name_normalized=normalized,
+            address=full_address,
+            city=city,
+            state=(state or "OH").strip()[:2],
+            zip_code=(zip_code or "").strip()[:10] if zip_code else None,
+            business_status="unknown",
+        )
+        db.add(recipient)
+        db.flush()
+        new_recipient_ids.add(recipient.id)
+    
+    recipient_cache[cache_key] = recipient.id
+    return recipient.id
+
+
+def parse_amount(amount_str: str) -> float:
+    """Parse amount string to float"""
     if not amount_str:
         return 0.0
     
-    # Remove currency symbols, commas, parentheses (for negatives)
-    cleaned = re.sub(r'[$,()]', '', str(amount_str))
-    cleaned = cleaned.strip()
-    
+    cleaned = re.sub(r'[$,()]', '', str(amount_str)).strip()
     if not cleaned or cleaned == '-':
         return 0.0
     
@@ -117,22 +166,18 @@ def parse_amount(amount_str: Optional[str]) -> float:
         return 0.0
 
 
-def parse_date(date_str: Optional[str]) -> Optional[date]:
-    """Parse various date formats"""
+def parse_date(date_str: str) -> Optional[date]:
+    """Parse date string"""
     if not date_str:
         return None
     
     date_str = str(date_str).strip()
     
-    # Common formats
-    formats = [
-        "%m/%d/%Y",
-        "%Y-%m-%d",
-        "%m-%d-%Y",
-        "%d-%b-%Y",
-        "%B %d, %Y",
-        "%m/%d/%y",
-    ]
+    # Handle "2022-01-18 00:00:00" format
+    if ' ' in date_str:
+        date_str = date_str.split(' ')[0]
+    
+    formats = ["%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y"]
     
     for fmt in formats:
         try:
@@ -143,183 +188,123 @@ def parse_date(date_str: Optional[str]) -> Optional[date]:
     return None
 
 
-def detect_file_type(headers: List[str]) -> str:
-    """Detect if this is an expenses, contracts, or salary file"""
-    headers_lower = [h.lower() for h in headers]
+def extract_year_month(filename: str) -> tuple:
+    """Extract year and month from filename for sorting"""
+    # Pattern: checkbook_transactions_YYYY_MM_Mon.csv
+    match = re.search(r'(\d{4})_(\d{2})_', filename)
+    if match:
+        return (int(match.group(1)), int(match.group(2)))
+    return (9999, 99)  # Sort unknown files last
+
+
+def map_account_to_award_type(account_name: str) -> str:
+    """Map Ohio account names to award types"""
+    if not account_name:
+        return "other"
     
-    if any('contract' in h for h in headers_lower):
-        return "contracts"
-    elif any('salary' in h or 'compensation' in h for h in headers_lower):
-        return "salaries"
+    account_lower = account_name.lower()
+    
+    if 'grant' in account_lower:
+        return "project_grant"
+    elif 'loan' in account_lower or 'scholarship' in account_lower:
+        return "direct_loan"
+    elif 'subsidy' in account_lower or 'assistance' in account_lower:
+        return "direct_payment"
+    elif 'refund' in account_lower:
+        return "direct_payment"
+    elif 'contract' in account_lower:
+        return "contract"
+    elif 'salary' in account_lower or 'payroll' in account_lower:
+        return "direct_payment"
     else:
-        return "expenses"
+        return "direct_payment"
 
 
-# =============================================================================
-# OHIO AGENCY MAPPING
-# =============================================================================
-
-OHIO_AGENCY_CODES = {
-    "Department of Education": "ODE",
-    "Department of Health": "ODH", 
-    "Department of Job and Family Services": "ODJFS",
-    "Department of Transportation": "ODOT",
-    "Department of Public Safety": "ODPS",
-    "Department of Natural Resources": "ODNR",
-    "Department of Administrative Services": "DAS",
-    "Department of Agriculture": "ODA",
-    "Department of Commerce": "COM",
-    "Department of Developmental Disabilities": "DODD",
-    "Department of Higher Education": "ODHE",
-    "Department of Insurance": "DOI",
-    "Department of Medicaid": "ODM",
-    "Department of Mental Health and Addiction Services": "OMHAS",
-    "Department of Rehabilitation and Correction": "ODRC",
-    "Department of Taxation": "TAX",
-    "Department of Veterans Services": "ODVS",
-    "Department of Youth Services": "DYS",
-    "Environmental Protection Agency": "OEPA",
-    "Bureau of Workers Compensation": "BWC",
-    "Ohio Lottery Commission": "LOT",
-    "Public Utilities Commission": "PUCO",
-    "Attorney General": "AGO",
-    "Auditor of State": "AOS",
-    "Secretary of State": "SOS",
-    "Treasurer of State": "TOS",
-}
-
-
-def get_ohio_agency_code(name: str) -> str:
-    """Get Ohio agency code from name"""
-    if not name:
-        return "UNK"
-    
-    # Check direct mapping
-    for full_name, code in OHIO_AGENCY_CODES.items():
-        if full_name.lower() in name.lower() or name.lower() in full_name.lower():
-            return code
-    
-    # Generate code from name
-    words = name.split()
-    if len(words) >= 2:
-        return ''.join(w[0].upper() for w in words[:3])
-    return name[:5].upper()
-
-
-# =============================================================================
-# IMPORT FUNCTIONS
-# =============================================================================
-
-def get_or_create_ohio_agency(db: Session, name: str) -> Optional[int]:
-    """Get or create Ohio agency"""
-    if not name:
-        return None
-    
-    code = get_ohio_agency_code(name)
-    
-    agency = db.query(Agency).filter(Agency.code == code).first()
-    if agency:
-        return agency.id
-    
-    agency = Agency(code=code, name=name)
-    db.add(agency)
-    db.flush()
-    return agency.id
-
-
-def get_or_create_ohio_recipient(
-    db: Session, 
-    name: str, 
-    city: Optional[str] = None,
-    state: str = "OH",
-    new_ids: set = None
-) -> int:
-    """Get or create recipient from Ohio Checkbook data"""
-    if not name or name.strip() == "":
-        name = "Unknown Vendor"
-    
-    name = name.strip()
-    normalized = normalize_name(name)
-    
-    # Try to find existing
-    query = db.query(Recipient).filter(Recipient.name_normalized == normalized)
-    if city:
-        query = query.filter(Recipient.city == city)
-    
-    recipient = query.first()
-    
-    if recipient:
-        return recipient.id
-    
-    recipient = Recipient(
-        name=name,
-        name_normalized=normalized,
-        city=city,
-        state=state or "OH",
-        business_status="unknown",
-    )
-    db.add(recipient)
-    db.flush()
-    
-    if new_ids is not None:
-        new_ids.add(recipient.id)
-    
-    return recipient.id
-
-
-def import_expenses_csv(
-    db: Session, 
-    filepath: Path, 
+def import_transaction_file(
+    db: Session,
+    filepath: Path,
     stats: Dict[str, int],
-    new_ids: Dict[str, set]
-) -> bool:
-    """Import Ohio Checkbook expenses CSV"""
+    existing_ids: Set[str],
+    agency_cache: Dict,
+    recipient_cache: Dict,
+    new_recipient_ids: Set,
+    new_award_ids: Set,
+) -> None:
+    """Import a single Ohio Checkbook transaction CSV file"""
     
-    print(f"\nImporting expenses from: {filepath.name}")
+    file_created = 0
+    file_skipped = 0
+    
+    print(f"\n  Processing: {filepath.name}")
     
     try:
+        # Count total rows first for progress
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
+            total_rows = sum(1 for _ in f) - 1  # Subtract header
+        
         with open(filepath, 'r', encoding='utf-8-sig') as f:
             reader = csv.DictReader(f)
             
-            batch_count = 0
-            for row in reader:
+            batch = []
+            batch_size = 5000
+            
+            for i, row in enumerate(reader):
                 stats["processed"] += 1
                 
-                # Extract fields using flexible column mapping
-                vendor = find_column(row, EXPENSE_COLUMN_MAPPINGS["vendor"])
-                amount_str = find_column(row, EXPENSE_COLUMN_MAPPINGS["amount"])
-                date_str = find_column(row, EXPENSE_COLUMN_MAPPINGS["date"])
-                agency_name = find_column(row, EXPENSE_COLUMN_MAPPINGS["agency"])
-                description = find_column(row, EXPENSE_COLUMN_MAPPINGS["description"])
-                vendor_city = find_column(row, EXPENSE_COLUMN_MAPPINGS["vendor_city"])
+                # Get payment reference ID for deduplication
+                payment_ref = row.get("payment_reference_id", "").strip()
+                if not payment_ref:
+                    stats["skipped"] += 1
+                    file_skipped += 1
+                    continue
                 
-                # Parse values
-                amount = parse_amount(amount_str)
-                award_date = parse_date(date_str)
+                source_id = f"ohio_{payment_ref}"
                 
-                # Skip zero or negative amounts (refunds, etc.)
+                # Check if already imported (in-memory check first)
+                if source_id in existing_ids:
+                    stats["skipped"] += 1
+                    file_skipped += 1
+                    continue
+                
+                # Parse amount
+                amount = parse_amount(row.get("payment_amount", "0"))
                 if amount <= 0:
                     stats["skipped"] += 1
+                    file_skipped += 1
                     continue
                 
-                # Create unique source ID
-                source_id = f"ohio_exp_{hash(f'{vendor}_{amount}_{date_str}_{agency_name}')}_{stats['processed']}"
+                # Parse date
+                payment_date = parse_date(row.get("payment_date", ""))
                 
-                # Check for duplicate
-                existing = db.query(Award).filter(
-                    Award.source == "ohio_checkbook",
-                    Award.source_award_id == source_id
-                ).first()
+                # Get vendor info
+                vendor_name = row.get("vendor_name", "Unknown").strip()
+                address1 = row.get("address1", "").strip()
+                address2 = row.get("address2", "").strip()
+                full_address = f"{address1} {address2}".strip() if address1 else None
+                city = row.get("city", "").strip()
+                state = row.get("state", "OH").strip()
+                zip_code = row.get("zip", "").strip()
                 
-                if existing:
-                    stats["skipped"] += 1
-                    continue
+                # Get agency
+                dept_id = row.get("department_id", "").strip()
+                dept_name = row.get("department_description", "").strip()
+                agency_id = get_or_create_ohio_agency(db, dept_id, dept_name, agency_cache)
                 
-                # Get/create entities
-                agency_id = get_or_create_ohio_agency(db, agency_name)
-                recipient_id = get_or_create_ohio_recipient(
-                    db, vendor, vendor_city, "OH", new_ids.get("recipients")
+                # Get recipient
+                recipient_id = get_or_create_recipient(
+                    db, vendor_name, full_address, city, state, zip_code,
+                    recipient_cache, new_recipient_ids
                 )
+                
+                # Determine award type
+                account_name = row.get("account_name", "")
+                award_type = map_account_to_award_type(account_name)
+                
+                # Build description
+                description = f"{account_name}" if account_name else ""
+                payment_method = row.get("payment_method", "")
+                if payment_method:
+                    description = f"{description} ({payment_method})" if description else payment_method
                 
                 # Create award
                 award = Award(
@@ -327,161 +312,43 @@ def import_expenses_csv(
                     source_award_id=source_id,
                     recipient_id=recipient_id,
                     agency_id=agency_id,
-                    award_type="direct_payment",
+                    award_type=award_type,
                     amount=amount,
-                    award_date=award_date,
-                    description=(description or "")[:500],
+                    award_date=payment_date,
+                    description=description[:500] if description else None,
+                    pop_city=city if city else None,
                     pop_state="OH",
+                    pop_zip=zip_code if zip_code else None,
                     last_modified=datetime.utcnow(),
                 )
-                db.add(award)
-                
-                if new_ids.get("awards") is not None:
-                    db.flush()
-                    new_ids["awards"].add(award.id)
+                batch.append(award)
+                existing_ids.add(source_id)
                 
                 stats["created"] += 1
-                batch_count += 1
+                file_created += 1
                 
-                # Commit in batches
-                if batch_count >= 1000:
+                # Batch insert
+                if len(batch) >= batch_size:
+                    db.bulk_save_objects(batch)
                     db.commit()
-                    print(f"  Processed {stats['processed']:,} rows, created {stats['created']:,}")
-                    batch_count = 0
+                    
+                    # Progress update
+                    pct = (i + 1) / total_rows * 100
+                    print(f"    {i+1:,}/{total_rows:,} ({pct:.0f}%) - Created: {file_created:,}")
+                    batch = []
             
-            db.commit()
-            return True
-            
+            # Final batch
+            if batch:
+                db.bulk_save_objects(batch)
+                db.commit()
+        
+        print(f"    ✓ Done: {file_created:,} created, {file_skipped:,} skipped")
+        
     except Exception as e:
-        print(f"  Error importing {filepath.name}: {e}")
+        print(f"    ✗ Error: {e}")
         db.rollback()
         stats["errors"] += 1
-        return False
 
-
-def import_contracts_csv(
-    db: Session, 
-    filepath: Path, 
-    stats: Dict[str, int],
-    new_ids: Dict[str, set]
-) -> bool:
-    """Import Ohio Checkbook contracts CSV"""
-    
-    print(f"\nImporting contracts from: {filepath.name}")
-    
-    try:
-        with open(filepath, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            
-            batch_count = 0
-            for row in reader:
-                stats["processed"] += 1
-                
-                # Extract fields
-                vendor = find_column(row, CONTRACT_COLUMN_MAPPINGS["vendor"])
-                amount_str = find_column(row, CONTRACT_COLUMN_MAPPINGS["amount"])
-                agency_name = find_column(row, CONTRACT_COLUMN_MAPPINGS["agency"])
-                start_date_str = find_column(row, CONTRACT_COLUMN_MAPPINGS["start_date"])
-                end_date_str = find_column(row, CONTRACT_COLUMN_MAPPINGS["end_date"])
-                contract_num = find_column(row, CONTRACT_COLUMN_MAPPINGS["contract_number"])
-                description = find_column(row, CONTRACT_COLUMN_MAPPINGS["description"])
-                
-                # Parse values
-                amount = parse_amount(amount_str)
-                start_date = parse_date(start_date_str)
-                end_date = parse_date(end_date_str)
-                
-                if amount <= 0:
-                    stats["skipped"] += 1
-                    continue
-                
-                # Create unique source ID
-                source_id = contract_num or f"ohio_con_{hash(f'{vendor}_{amount}_{start_date_str}')}_{stats['processed']}"
-                
-                # Check for duplicate
-                existing = db.query(Award).filter(
-                    Award.source == "ohio_checkbook",
-                    Award.source_award_id == source_id
-                ).first()
-                
-                if existing:
-                    existing.amount = amount  # Update amount
-                    stats["updated"] += 1
-                    continue
-                
-                # Get/create entities
-                agency_id = get_or_create_ohio_agency(db, agency_name)
-                recipient_id = get_or_create_ohio_recipient(
-                    db, vendor, None, "OH", new_ids.get("recipients")
-                )
-                
-                # Create award
-                award = Award(
-                    source="ohio_checkbook",
-                    source_award_id=source_id,
-                    recipient_id=recipient_id,
-                    agency_id=agency_id,
-                    award_type="contract",
-                    amount=amount,
-                    award_date=start_date,
-                    start_date=start_date,
-                    end_date=end_date,
-                    description=(description or "")[:500],
-                    pop_state="OH",
-                    last_modified=datetime.utcnow(),
-                )
-                db.add(award)
-                
-                if new_ids.get("awards") is not None:
-                    db.flush()
-                    new_ids["awards"].add(award.id)
-                
-                stats["created"] += 1
-                batch_count += 1
-                
-                if batch_count >= 1000:
-                    db.commit()
-                    print(f"  Processed {stats['processed']:,} rows, created {stats['created']:,}")
-                    batch_count = 0
-            
-            db.commit()
-            return True
-            
-    except Exception as e:
-        print(f"  Error importing {filepath.name}: {e}")
-        db.rollback()
-        stats["errors"] += 1
-        return False
-
-
-def import_csv_file(
-    db: Session, 
-    filepath: Path, 
-    stats: Dict[str, int],
-    new_ids: Dict[str, set]
-) -> bool:
-    """Import a single CSV file, auto-detecting type"""
-    
-    # Read headers to detect file type
-    with open(filepath, 'r', encoding='utf-8-sig') as f:
-        reader = csv.reader(f)
-        headers = next(reader, [])
-    
-    file_type = detect_file_type(headers)
-    print(f"  Detected file type: {file_type}")
-    
-    if file_type == "contracts":
-        return import_contracts_csv(db, filepath, stats, new_ids)
-    elif file_type == "salaries":
-        print("  Skipping salary file (not relevant for fraud detection)")
-        return True
-    else:
-        return import_expenses_csv(db, filepath, stats, new_ids)
-
-
-# =============================================================================
-# MAIN
-# =============================================================================
 
 def main():
     parser = argparse.ArgumentParser(description="Import Ohio Checkbook CSV data")
@@ -493,16 +360,14 @@ def main():
     
     if not args.file and not args.folder:
         print("Error: Must specify --file or --folder")
-        print("\nHow to get data:")
-        print("1. Go to checkbook.ohio.gov/State/")
-        print("2. Apply filters (fiscal year, agency, etc.)")
-        print("3. Click 'Download CSV'")
-        print("4. Run: python -m scripts.import_ohio_checkbook --file your_file.csv")
+        print("\nUsage:")
+        print("  python -m scripts.import_ohio_checkbook --folder ../data/ohio_checkbook/")
+        print("  python -m scripts.import_ohio_checkbook --file ../data/ohio_checkbook/file.csv")
         sys.exit(1)
     
-    print("=" * 60)
+    print("=" * 70)
     print("Ohio Checkbook Import")
-    print("=" * 60)
+    print("=" * 70)
     
     init_db()
     
@@ -520,7 +385,11 @@ def main():
     if args.folder:
         folder = Path(args.folder)
         if folder.exists():
-            files_to_import.extend(folder.glob("*.csv"))
+            # Get all CSV files
+            csv_files = list(folder.glob("*.csv"))
+            # Sort by year/month extracted from filename
+            csv_files.sort(key=lambda f: extract_year_month(f.name))
+            files_to_import.extend(csv_files)
         else:
             print(f"Error: Folder not found: {args.folder}")
             sys.exit(1)
@@ -529,36 +398,57 @@ def main():
         print("No CSV files found to import")
         sys.exit(1)
     
-    print(f"\nFiles to import: {len(files_to_import)}")
-    for f in files_to_import:
+    print(f"\nFound {len(files_to_import)} CSV files to import:")
+    for f in files_to_import[:5]:
         print(f"  - {f.name}")
+    if len(files_to_import) > 5:
+        print(f"  ... and {len(files_to_import) - 5} more")
     
     stats = {
         "processed": 0,
         "created": 0,
-        "updated": 0,
         "skipped": 0,
         "errors": 0,
     }
     
-    new_ids = {
-        "recipients": set(),
-        "awards": set()
-    }
+    new_recipient_ids: Set[int] = set()
+    new_award_ids: Set[int] = set()
     
     with get_db_context() as db:
-        for filepath in files_to_import:
-            import_csv_file(db, filepath, stats, new_ids)
+        # Load existing Ohio Checkbook source IDs for fast duplicate checking
+        print("\nLoading existing records for duplicate detection...")
+        existing_ids = set(
+            row[0] for row in db.query(Award.source_award_id).filter(
+                Award.source == "ohio_checkbook"
+            ).all()
+        )
+        print(f"  Found {len(existing_ids):,} existing Ohio Checkbook records")
         
-        # Print summary
-        print("\n" + "=" * 60)
+        # Caches for agencies and recipients
+        agency_cache: Dict[str, int] = {}
+        recipient_cache: Dict[str, int] = {}
+        
+        print("\n" + "-" * 70)
+        print("IMPORTING FILES")
+        print("-" * 70)
+        
+        for i, filepath in enumerate(files_to_import):
+            print(f"\n[{i+1}/{len(files_to_import)}]", end="")
+            import_transaction_file(
+                db, filepath, stats, existing_ids,
+                agency_cache, recipient_cache,
+                new_recipient_ids, new_award_ids
+            )
+        
+        # Final summary
+        print("\n" + "=" * 70)
         print("IMPORT COMPLETE")
-        print("=" * 60)
-        print(f"Records processed: {stats['processed']:,}")
-        print(f"Records created: {stats['created']:,}")
-        print(f"Records updated: {stats['updated']:,}")
-        print(f"Records skipped: {stats['skipped']:,}")
-        print(f"Errors: {stats['errors']}")
+        print("=" * 70)
+        print(f"Records processed:  {stats['processed']:,}")
+        print(f"Records created:    {stats['created']:,}")
+        print(f"Records skipped:    {stats['skipped']:,} (duplicates/invalid)")
+        print(f"Errors:             {stats['errors']}")
+        print(f"New recipients:     {len(new_recipient_ids):,}")
         
         # Database totals
         total_ohio = db.query(func.count(Award.id)).filter(
@@ -566,14 +456,14 @@ def main():
         ).scalar() or 0
         total_all = db.query(func.count(Award.id)).scalar() or 0
         
-        print(f"\nOhio Checkbook awards in database: {total_ohio:,}")
-        print(f"Total awards in database: {total_all:,}")
+        print(f"\nOhio Checkbook in DB: {total_ohio:,}")
+        print(f"Total awards in DB:   {total_all:,}")
         
         # Run correlation if not skipped
-        if not args.skip_correlation and (new_ids["recipients"] or new_ids["awards"]):
-            print("\n" + "=" * 60)
+        if not args.skip_correlation and stats['created'] > 0:
+            print("\n" + "=" * 70)
             print("POST-IMPORT CORRELATION")
-            print("=" * 60)
+            print("=" * 70)
             
             try:
                 from src.correlation.post_import import run_post_import_analysis
@@ -581,14 +471,16 @@ def main():
                 results = run_post_import_analysis(
                     db=db,
                     source="ohio_checkbook",
-                    new_recipient_ids=list(new_ids["recipients"]),
-                    new_award_ids=list(new_ids["awards"]),
+                    new_recipient_ids=list(new_recipient_ids),
+                    new_award_ids=list(new_award_ids),
                 )
                 
-                print(f"Correlation flags created: {results['flags_created']}")
+                print(f"Correlation flags created: {results.get('flags_created', 0)}")
                 if results.get('flags_by_type'):
                     print(f"By type: {results['flags_by_type']}")
                     
+            except ImportError:
+                print("Correlation module not available, skipping...")
             except Exception as e:
                 print(f"Correlation failed: {e}")
 

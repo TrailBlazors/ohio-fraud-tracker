@@ -50,21 +50,22 @@ if ($Setup) {
     
     # API setup
     Write-Host "[1/2] Setting up API..." -ForegroundColor Green
-    Set-Location $ApiPath
+    Set-Location $ProjectRoot
     
-    if (-not (Test-Path ".venv")) {
-        Write-Host "  Creating Python virtual environment..."
-        python -m venv .venv
+    if (-not (Test-Path "venv313")) {
+        Write-Host "  Creating Python virtual environment (Python 3.13)..."
+        py -3.13 -m venv venv313
     }
     
-    $VenvPip = Join-Path $ApiPath ".venv\Scripts\pip.exe"
+    $VenvPip = Join-Path $ProjectRoot "venv313\Scripts\pip.exe"
     Write-Host "  Installing Python dependencies..."
-    & $VenvPip install -r requirements.txt
+    & $VenvPip install -r (Join-Path $ApiPath "requirements.txt")
     
-    if (-not (Test-Path ".env")) {
-        Copy-Item ".env.example" ".env"
+    if (-not (Test-Path (Join-Path $ApiPath ".env"))) {
+        Copy-Item (Join-Path $ApiPath ".env.example") (Join-Path $ApiPath ".env")
     }
     
+    Set-Location $ApiPath
     New-Item -ItemType Directory -Path "data" -Force | Out-Null
     
     # Frontend setup
@@ -92,9 +93,9 @@ if ($Status) {
     
     # Check API
     Write-Host "API:" -ForegroundColor Cyan
-    $VenvPython = Join-Path $ApiPath ".venv\Scripts\python.exe"
+    $VenvPython = Join-Path $ProjectRoot "venv313\Scripts\python.exe"
     if (Test-Path $VenvPython) {
-        Write-Host "  Python venv: OK" -ForegroundColor Green
+        Write-Host "  Python venv: OK (Python 3.13)" -ForegroundColor Green
         
         # Check if API is running
         $apiRunning = Test-NetConnection -ComputerName localhost -Port 8000 -WarningAction SilentlyContinue -ErrorAction SilentlyContinue

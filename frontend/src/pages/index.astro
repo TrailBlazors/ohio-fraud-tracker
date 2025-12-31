@@ -1,6 +1,6 @@
 ---
 import DashboardLayout from '../layouts/DashboardLayout.astro';
-import { getStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate } from '../lib/api';
+import { getStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate, getSourceName } from '../lib/api';
 
 let stats;
 let error = null;
@@ -14,19 +14,114 @@ try {
     total_amount: 0,
     total_recipients: 0,
     total_flagged: 0,
+    correlation_status: 'no_data',
     awards_by_type: {},
     awards_by_source: {},
     top_agencies: [],
     recent_awards: [],
   };
 }
+
+const showCorrelationPrompt = stats.correlation_status === 'not_run' && stats.total_awards > 0;
+
+// Source display config
+const sourceConfig: Record<string, { name: string; icon: string; color: string; link: string }> = {
+  usaspending: { 
+    name: 'Federal (USAspending)', 
+    icon: '🇺🇸', 
+    color: 'from-blue-500 to-blue-600',
+    link: '/grants?source=usaspending'
+  },
+  ohio_checkbook: { 
+    name: 'Ohio Checkbook', 
+    icon: '🏛️', 
+    color: 'from-amber-500 to-amber-600',
+    link: '/grants?source=ohio_checkbook'
+  },
+  sba_ppp: { 
+    name: 'SBA PPP Loans', 
+    icon: '💼', 
+    color: 'from-green-500 to-green-600',
+    link: '/loans'
+  },
+};
 ---
 
 <DashboardLayout title="Dashboard">
+  <!-- Beta / Work in Progress Banner -->
+  <div class="mb-6 p-4 rounded-lg bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/30 dark:to-blue-900/30 border border-primary-200 dark:border-primary-700">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div class="flex items-start gap-3">
+        <div class="p-2 bg-primary-100 dark:bg-primary-800 rounded-lg">
+          <svg class="w-6 h-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-semibold text-primary-800 dark:text-primary-300">Work in Progress</h3>
+            <span class="px-2 py-0.5 text-xs font-medium bg-primary-200 dark:bg-primary-700 text-primary-800 dark:text-primary-200 rounded-full">BETA</span>
+          </div>
+          <p class="text-sm text-primary-700 dark:text-primary-400 mt-1">
+            This transparency tool is under active development. Data imports are ongoing and fraud detection algorithms are being refined. 
+            We welcome your feedback, feature requests, and bug reports!
+          </p>
+        </div>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <a href="mailto:support@ohiofraudtracker.org" 
+           class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+          </svg>
+          Send Feedback
+        </a>
+        <a href="https://buymeacoffee.com/frVc2JO" 
+           target="_blank"
+           rel="noopener noreferrer"
+           class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-amber-900 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg whitespace-nowrap">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 19V8.5C4 7.67 4.67 7 5.5 7H16.5C17.33 7 18 7.67 18 8.5V9H19C20.1 9 21 9.9 21 11V13C21 14.1 20.1 15 19 15H18V15.5C18 16.33 17.33 17 16.5 17H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M18 9V15" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7 7V5C7 4.45 7.45 4 8 4H14C14.55 4 15 4.45 15 5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M5 17C5 17 6 19 8 19C10 19 11 17 11 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M8 12V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M11 11V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          Buy Me a Coffee
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- Error banner -->
   {error && (
     <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
       <span class="font-medium">Error:</span> {error}
+    </div>
+  )}
+
+  <!-- Correlation Analysis Prompt -->
+  {showCorrelationPrompt && (
+    <div id="correlation-prompt" class="p-4 mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center">
+          <svg class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+          </svg>
+          <div>
+            <p class="font-medium text-amber-800 dark:text-amber-300">Fraud analysis not yet run</p>
+            <p class="text-sm text-amber-700 dark:text-amber-400">Run correlation analysis to detect potential issues in your data.</p>
+          </div>
+        </div>
+        <button 
+          id="run-correlation-btn"
+          class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          Run Analysis
+        </button>
+      </div>
+      <div id="correlation-result" class="mt-3 hidden"></div>
     </div>
   )}
 
@@ -74,7 +169,7 @@ try {
       </div>
     </div>
     
-    <div class="stat-card">
+    <a href="/flagged" class="stat-card hover:ring-2 hover:ring-red-500/50 transition-all">
       <div class="flex items-center">
         <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-md shadow-red-500/20">
           <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
@@ -82,12 +177,52 @@ try {
           </svg>
         </div>
         <div class="ms-4">
-          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Flagged</h3>
-          <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_flagged.toLocaleString()}</p>
+          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Flagged Issues</h3>
+          <p class="text-2xl font-bold text-gray-900 dark:text-white">
+            {stats.total_flagged.toLocaleString()}
+            {stats.correlation_status === 'not_run' && stats.total_awards > 0 && (
+              <span class="text-sm font-normal text-amber-500 ml-2">⚠️</span>
+            )}
+          </p>
         </div>
       </div>
-    </div>
+    </a>
   </div>
+
+  <!-- Data Sources Row -->
+  {Object.keys(stats.awards_by_source).length > 0 && (
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Data Sources</h3>
+        <a href="/data-status" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">
+          View details →
+        </a>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {Object.entries(stats.awards_by_source).map(([source, data]) => {
+          const config = sourceConfig[source] || { name: source, icon: '📄', color: 'from-gray-500 to-gray-600', link: '/grants' };
+          return (
+            <a href={config.link} class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class={`inline-flex flex-shrink-0 justify-center items-center w-10 h-10 text-white bg-gradient-to-br ${config.color} rounded-lg text-lg`}>
+                    {config.icon}
+                  </div>
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white">{config.name}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">{data.count.toLocaleString()} records</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-lg font-bold text-green-600 dark:text-green-400">${formatNumber(data.total)}</p>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  )}
 
   <!-- Charts Row -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -133,6 +268,7 @@ try {
         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
           <tr class="text-gray-600 dark:text-gray-300">
             <th class="px-4 py-3 w-1/3">Recipient</th>
+            <th class="px-4 py-3 w-16 text-center">Source</th>
             <th class="px-4 py-3 w-20 text-center">Agency</th>
             <th class="px-4 py-3 w-36 text-center">Type</th>
             <th class="px-4 py-3 w-28 text-right">Amount</th>
@@ -147,6 +283,15 @@ try {
                 {award.recipient_city && (
                   <div class="text-xs text-gray-500 dark:text-gray-400">{award.recipient_city}</div>
                 )}
+              </td>
+              <td class="px-4 py-3 text-center">
+                <span class={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                  award.source === 'usaspending' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                  award.source === 'ohio_checkbook' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300' :
+                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                }`} title={getSourceName(award.source)}>
+                  {award.source === 'usaspending' ? '🇺🇸' : award.source === 'ohio_checkbook' ? '🏛️' : '📄'}
+                </span>
               </td>
               <td class="px-4 py-3 text-center">
                 {award.agency_code ? (
@@ -173,7 +318,7 @@ try {
           ))}
           {stats.recent_awards.length === 0 && (
             <tr>
-              <td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">
+              <td colspan="6" class="text-center py-8 text-gray-500 dark:text-gray-400">
                 No recent awards found
               </td>
             </tr>
@@ -187,6 +332,66 @@ try {
       </a>
     </div>
   </div>
+
+  <!-- Run Correlation Script -->
+  <script is:inline>
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('run-correlation-btn');
+      const resultDiv = document.getElementById('correlation-result');
+      const promptDiv = document.getElementById('correlation-prompt');
+      
+      // Use relative URL in production, localhost in dev
+      const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+      
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Analyzing...';
+          
+          try {
+            const response = await fetch(`${apiBase}/api/correlation/run`, {
+              method: 'POST',
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+              resultDiv.innerHTML = `
+                <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                  <p class="font-medium">✓ Analysis complete!</p>
+                  <p class="text-sm mt-1">Found ${result.flags_found} potential issues. ${result.flags_saved} saved to database.</p>
+                  <p class="text-sm mt-2"><a href="/flagged" class="underline">View flagged items →</a></p>
+                </div>
+              `;
+              resultDiv.classList.remove('hidden');
+              
+              // Reload after 2 seconds to update stats
+              setTimeout(() => window.location.reload(), 2000);
+            } else {
+              resultDiv.innerHTML = `
+                <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+                  <p class="font-medium">Error running analysis</p>
+                  <p class="text-sm">${result.error || 'Unknown error'}</p>
+                </div>
+              `;
+              resultDiv.classList.remove('hidden');
+              btn.disabled = false;
+              btn.textContent = 'Retry';
+            }
+          } catch (err) {
+            resultDiv.innerHTML = `
+              <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+                <p class="font-medium">Connection error</p>
+                <p class="text-sm">Could not connect to API. Is the server running?</p>
+              </div>
+            `;
+            resultDiv.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+          }
+        });
+      }
+    });
+  </script>
 
   <!-- ApexCharts for Awards by Type -->
   <script is:inline src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
@@ -202,6 +407,7 @@ try {
           guaranteed_loan: 'Guaranteed Loan',
           direct_payment: 'Direct Payment',
           loan: 'PPP Loan',
+          contract: 'Contract',
           other: 'Other',
         };
         return names[type] || type;
@@ -216,7 +422,7 @@ try {
           type: 'donut',
           height: 300,
         },
-        colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b'],
+        colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444'],
         legend: {
           position: 'bottom',
           labels: {

@@ -1,73 +1,60 @@
 # Ohio Checkbook Data
 
-This folder holds CSV files downloaded from [Ohio Checkbook](https://checkbook.ohio.gov).
+This folder contains CSV transaction files from [Ohio Checkbook](https://checkbook.ohio.gov).
 
-## How to Download Data
+## Current Data
 
-### State Expenses (Recommended First)
+Files follow the naming convention: `checkbook_transactions_YYYY_MM_Mon.csv`
 
-1. Go to https://checkbook.ohio.gov/State/
-2. **Filter by Fiscal Year** (click the year dropdown)
-   - Start with the current year, then go back as needed
-3. Optional: Filter by Agency, Fund, or Expense Type
-4. Click **"Download CSV"** button (top right of chart)
-5. Save the file here with a descriptive name:
-   - `state_expenses_FY2024.csv`
-   - `state_expenses_FY2023.csv`
+Available: 2022-01 through 2025 (monthly files)
 
-### State Contracts
+## File Structure
 
-1. Go to https://checkbook.ohio.gov/State/Expanded/StateContracts.aspx
-2. Apply filters as desired
-3. Click **"Download CSV"**
-4. Save as: `state_contracts_FY2024.csv`
-
-### Local Government (Optional)
-
-1. Go to https://checkbook.ohio.gov/Local/
-2. Select a specific county, city, or township
-3. Download CSV
-4. Save as: `local_[entity_name]_FY2024.csv`
+Each CSV contains these columns:
+- `account`, `account_name` - Budget account classification
+- `department_id`, `department_description` - State agency
+- `payment_date`, `payment_method` - When and how paid
+- `payment_reference_id` - **Unique ID** (used for deduplication)
+- `payment_amount` - Dollar amount
+- `vendor_name`, `address1`, `address2`, `city`, `state`, `zip` - Recipient info
+- `transaction_month` - Fiscal month
 
 ## Import Commands
 
 ```powershell
 cd C:\Projects\ohio-fraud-tracker\api
+.\.venv\Scripts\Activate.ps1
+
+# Import ALL CSV files in this folder (recommended)
+python -m scripts.import_ohio_checkbook --folder ..\data\ohio_checkbook\
 
 # Import a single file
-python -m scripts.import_ohio_checkbook --file ..\data\ohio_checkbook\state_expenses_FY2024.csv
+python -m scripts.import_ohio_checkbook --file ..\data\ohio_checkbook\checkbook_transactions_2022_01_Jan.csv
 
-# Import all CSVs in this folder
-python -m scripts.import_ohio_checkbook --folder ..\data\ohio_checkbook\
+# Import without running correlation analysis
+python -m scripts.import_ohio_checkbook --folder ..\data\ohio_checkbook\ --skip-correlation
 ```
 
-## Expected Columns
+## Deduplication
 
-The importer auto-detects file types. Common columns include:
+The importer uses `payment_reference_id` as the unique identifier. If you re-run the import:
+- Existing records are skipped automatically
+- Only new transactions are added
+- Safe to run multiple times
 
-### State Expenses
-- Vendor / Payee
-- Amount
-- Date / Payment Date
-- Agency
-- Fund
-- Expense Type
+## Data Volume
 
-### State Contracts  
-- Vendor Name
-- Contract Amount
-- Agency
-- Start Date / End Date
-- Contract Number
+Typical monthly files:
+- Small months: 50-100MB, ~500K-1M transactions
+- Large months: 200-300MB, ~2-3M transactions
 
-## Tips
+Total 2022-2025: ~1.5GB, ~15M+ transactions
 
-- **Start with one fiscal year** to test the import
-- **Filter by large amounts** (e.g., >$100k) to focus on significant transactions
-- The importer skips zero/negative amounts (refunds)
-- Duplicate detection prevents re-importing the same transactions
+## Download Instructions
 
-## Data Freshness
+If you need to download more data:
 
-Ohio Checkbook updates daily with transactions through the previous business day.
-For best results, download fresh data periodically (weekly or monthly).
+1. Go to https://checkbook.ohio.gov/Spending/Transactions
+2. Select date range (one month at a time recommended)
+3. Click "Export" → CSV
+4. Save with naming convention: `checkbook_transactions_YYYY_MM_Mon.csv`

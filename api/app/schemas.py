@@ -210,6 +210,7 @@ class DashboardStats(BaseModel):
     total_amount: float
     total_recipients: int
     total_flagged: int
+    correlation_status: str = "not_run"  # not_run, run, needs_update
     awards_by_type: dict
     awards_by_source: dict
     top_agencies: List[AgencySummary]

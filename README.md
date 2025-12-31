@@ -166,7 +166,32 @@ python -m scripts.import_sba_ppp --clear --file 150k_plus
 
 ### Ohio Checkbook (State Spending)
 
-*Coming soon* - Import Ohio state spending data for additional cross-referencing.
+Import Ohio state spending data from checkbook.ohio.gov.
+
+#### Step 1: Download Data Files
+
+1. Go to: https://checkbook.ohio.gov/
+2. Click "Download" or use the data export feature
+3. Download spending data files (CSV format)
+4. Place files in: `data/ohio_checkbook/`
+
+#### Step 2: Run Import
+
+```bash
+cd api
+..\venv\Scripts\activate
+
+# Import all files in the folder
+python -m scripts.import_ohio_checkbook --folder ../data/ohio_checkbook/
+
+# Import a specific file
+python -m scripts.import_ohio_checkbook --file ../data/ohio_checkbook/spending_2024.csv
+```
+
+**Expected Data:**
+- ~8+ million spending records
+- Total: $45+ billion in state spending
+- Includes vendor payments, contracts, grants
 
 ---
 
@@ -252,6 +277,83 @@ ohio-fraud-tracker/
 - Address clustering detection
 - Temporal pattern analysis
 - PPP forgiveness anomaly detection
+
+## Deployment (Vercel + Turso)
+
+This project deploys as a monorepo on Vercel with Turso as the database.
+
+### 1. Set Up Turso Database
+
+```bash
+# Install Turso CLI
+curl -sSfL https://get.tur.so/install.sh | bash
+
+# Login
+turso auth login
+
+# Create database
+turso db create ohio-fraud-tracker
+
+# Get connection URL
+turso db show ohio-fraud-tracker --url
+
+# Create auth token
+turso db tokens create ohio-fraud-tracker
+```
+
+### 2. Deploy to Vercel
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy (from project root)
+vercel
+
+# Set environment variables
+vercel env add TURSO_DATABASE_URL
+vercel env add TURSO_AUTH_TOKEN
+
+# Deploy to production
+vercel --prod
+```
+
+### 3. Vercel Environment Variables
+
+Set these in your Vercel project settings:
+
+| Variable | Value |
+|----------|-------|
+| `TURSO_DATABASE_URL` | `libsql://ohio-fraud-tracker-xxx.turso.io` |
+| `TURSO_AUTH_TOKEN` | Your token from `turso db tokens create` |
+
+### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│              Vercel                      │
+│  ┌─────────────┐  ┌─────────────────┐   │
+│  │  Frontend   │  │  API (FastAPI)  │   │
+│  │  (Astro)    │  │  (Serverless)   │   │
+│  └─────────────┘  └────────┬────────┘   │
+└────────────────────────────┼────────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │     Turso       │
+                    │   (Database)    │
+                    └─────────────────┘
+```
+
+### Cost
+
+| Component | Free Tier |
+|-----------|----------|
+| Vercel (Frontend + API) | Hobby plan - free |
+| Turso (Database) | 9 GB storage, 1B reads/month |
+| **Total** | **$0/month** |
+
+---
 
 ## Environment Variables
 

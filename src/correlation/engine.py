@@ -92,8 +92,16 @@ class CorrelationEngine:
     def __init__(self, db: Session):
         self.db = db
         
-        # Import models
-        from api.app.models import Award, Recipient, Agency, FraudFlag
+        # Import models - try multiple paths for flexibility
+        try:
+            from api.app.models import Award, Recipient, Agency, FraudFlag
+        except ImportError:
+            try:
+                from app.models import Award, Recipient, Agency, FraudFlag
+            except ImportError:
+                # Last resort - absolute import if package is installed
+                raise ImportError("Could not import models. Ensure you're running from the correct directory.")
+        
         self.Award = Award
         self.Recipient = Recipient
         self.Agency = Agency
@@ -211,8 +219,8 @@ class CorrelationEngine:
         
         return flags
     
-    def find_unusually_large_awards(self, min_amount: float = 1000000) -> List[FraudIndicator]:
-        """Find awards that are statistical outliers."""
+    def find_unusually_large_awards(self, min_amount: float = 100000) -> List[FraudIndicator]:
+        """Find awards that are statistical outliers (5x above average)."""
         flags = []
         
         stats = self.db.query(
@@ -222,11 +230,11 @@ class CorrelationEngine:
         ).group_by(self.Award.source).all()
         
         for source_stat in stats:
-            if source_stat.count < 100:
+            if source_stat.count < 10:  # Need at least 10 records
                 continue
             
             avg = source_stat.avg or 0
-            threshold = max(avg * 3, min_amount)
+            threshold = max(avg * 5, min_amount)  # 5x average or min_amount
             
             outliers = self.db.query(self.Award, self.Recipient).join(
                 self.Recipient, self.Award.recipient_id == self.Recipient.id

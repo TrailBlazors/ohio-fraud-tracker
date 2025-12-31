@@ -17,24 +17,13 @@ const navItems = [
   { href: "/data-status", label: "Data Status", icon: "database" },
 ];
 
-// Fetch data coverage from API
-let dataCoverage = { sources: {} };
-try {
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
-  const res = await fetch(`${API_URL}/api/stats/data-coverage`);
-  if (res.ok) {
-    dataCoverage = await res.json();
-  }
-} catch (e) {
-  // Silently fail - sidebar will show without year ranges
-}
+// Data coverage will be loaded client-side to avoid blocking page render
+// See script at bottom of file
+let dataCoverage: { sources: Record<string, any> } = { sources: {} };
 
 // Helper to format source info
 function getSourceInfo(sourceKey: string) {
-  const info = dataCoverage.sources?.[sourceKey];
-  if (info && info.min_year && info.max_year) {
-    return `${info.min_year}-${info.max_year}`;
-  }
+  // This will be populated client-side
   return null;
 }
 ---
@@ -242,17 +231,70 @@ function getSourceInfo(sourceKey: string) {
             </a>
           </li>
           <li class="px-2 py-1">
-            <a href="https://checkbook.ohio.gov" target="_blank" rel="noopener noreferrer" class="flex items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
-              <span class="w-2 h-2 bg-yellow-500 rounded-full mr-2 flex-shrink-0"></span>
-              Ohio Checkbook
-              <span class="text-xs text-gray-400 ml-1">(coming)</span>
-              <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
-                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
-              </svg>
+            <a href="https://checkbook.ohio.gov" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+              <span class="flex items-center">
+                <span class="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
+                Ohio Checkbook
+                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
+                  <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
+                </svg>
+              </span>
+              {getSourceInfo('ohio_checkbook') && (
+                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{getSourceInfo('ohio_checkbook')}</span>
+              )}
             </a>
           </li>
         </ul>
+      </div>
+      <!-- Feedback section -->
+      <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+        <div class="px-2 py-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="px-1.5 py-0.5 text-xs font-semibold bg-primary-200 dark:bg-primary-700 text-primary-800 dark:text-primary-200 rounded">BETA</span>
+            <span class="text-xs font-medium text-primary-700 dark:text-primary-300">Work in Progress</span>
+          </div>
+          <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
+            Help us improve! Send feedback, report bugs, or suggest features.
+          </p>
+          <a href="mailto:support@ohiofraudtracker.org" class="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+            </svg>
+            support@ohiofraudtracker.org
+          </a>
+        </div>
+      </div>
+      
+      <!-- Support / Buy Me a Coffee -->
+      <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+        <a href="https://buymeacoffee.com/frVc2JO" 
+           target="_blank" 
+           rel="noopener noreferrer"
+           class="block px-3 py-3 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 group">
+          <div class="flex items-center gap-3">
+            <div class="flex-shrink-0 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-inner">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 19V8.5C4 7.67 4.67 7 5.5 7H16.5C17.33 7 18 7.67 18 8.5V9H19C20.1 9 21 9.9 21 11V13C21 14.1 20.1 15 19 15H18V15.5C18 16.33 17.33 17 16.5 17H14" stroke="#78350f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M18 9V15" stroke="#78350f" stroke-width="1.5"/>
+                <path d="M7 7V5C7 4.45 7.45 4 8 4H14C14.55 4 15 4.45 15 5V7" stroke="#78350f" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M5 17C5 17 6 19 8 19C10 19 11 17 11 17" stroke="#78350f" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M8 12V14" stroke="#78350f" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11 11V14" stroke="#78350f" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-amber-900">Support This Project</p>
+              <p class="text-xs text-amber-800/80">Buy me a coffee ☕</p>
+            </div>
+            <svg class="w-5 h-5 text-amber-900/70 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+          </div>
+        </a>
+        <p class="mt-2 px-1 text-xs text-gray-500 dark:text-gray-400 text-center">
+          Help cover hosting & data costs
+        </p>
       </div>
     </div>
   </aside>
@@ -261,6 +303,40 @@ function getSourceInfo(sourceKey: string) {
   <div class="p-4 sm:ml-64">
     <div class="p-4 mt-14">
       <slot />
+      
+      <!-- Footer -->
+      <footer class="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
+          <div>
+            <p>Ohio Fraud Tracker — A transparency tool for Ohio taxpayers</p>
+            <p class="text-xs mt-1">Data sourced from USAspending.gov, SBA, Ohio Checkbook, and Ohio Secretary of State</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="mailto:support@ohiofraudtracker.org" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+              </svg>
+              Feedback
+            </a>
+            <a href="/data-status" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+              </svg>
+              Data Status
+            </a>
+            <a href="https://buymeacoffee.com/frVc2JO" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-amber-900 rounded-full text-xs font-bold transition-all shadow hover:shadow-md">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 19V8.5C4 7.67 4.67 7 5.5 7H16.5C17.33 7 18 7.67 18 8.5V9H19C20.1 9 21 9.9 21 11V13C21 14.1 20.1 15 19 15H18V15.5C18 16.33 17.33 17 16.5 17H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M18 9V15" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+              Support
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   </div>
 

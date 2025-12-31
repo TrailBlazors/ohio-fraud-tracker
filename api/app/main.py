@@ -30,7 +30,9 @@ app.add_middleware(
         "http://localhost:4321",      # Astro alt port
         "http://127.0.0.1:3000",
         "http://127.0.0.1:4321",
-        # Add production URLs here
+        "https://ohiofraudtracker.org",
+        "https://www.ohiofraudtracker.org",
+        "https://*.vercel.app",       # Vercel preview deployments
     ],
     allow_credentials=True,
     allow_methods=["*"],

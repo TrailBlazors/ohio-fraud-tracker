@@ -33,10 +33,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
 Set-Location $ScriptDir
 
-$VenvPython = Join-Path $ScriptDir ".venv\Scripts\python.exe"
-$VenvPip = Join-Path $ScriptDir ".venv\Scripts\pip.exe"
+# Use venv313 at project root
+$VenvPython = Join-Path $ProjectRoot "venv313\Scripts\python.exe"
+$VenvPip = Join-Path $ProjectRoot "venv313\Scripts\pip.exe"
 
 # Banner
 Write-Host ""
@@ -48,13 +50,17 @@ Write-Host "================================================" -ForegroundColor C
 if ($Setup) {
     Write-Host "`nSetting up development environment..." -ForegroundColor Yellow
     
-    if (-not (Test-Path ".venv")) {
-        Write-Host "Creating virtual environment..."
-        python -m venv .venv
+    Set-Location $ProjectRoot
+    
+    if (-not (Test-Path "venv313")) {
+        Write-Host "Creating virtual environment (Python 3.13)..."
+        py -3.13 -m venv venv313
     }
     
     Write-Host "Installing dependencies..."
-    & $VenvPip install -r requirements.txt
+    & $VenvPip install -r (Join-Path $ScriptDir "requirements.txt")
+    
+    Set-Location $ScriptDir
     
     Write-Host "Creating data directory..."
     New-Item -ItemType Directory -Path "data" -Force | Out-Null

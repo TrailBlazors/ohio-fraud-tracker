@@ -5,8 +5,7 @@ python-multipart>=0.0.6
 
 # Database
 sqlalchemy>=2.0.0
-# For Turso production (uncomment when deploying)
-# libsql-experimental>=0.0.34
+# libsql-experimental  # Optional: For Turso (requires Rust)
 
 # Data validation
 pydantic>=2.0.0

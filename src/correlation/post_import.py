@@ -58,11 +58,18 @@ def run_post_import_analysis(
     
     flags = []
     
+    # Batch size for SQLite variable limit
+    BATCH_SIZE = 500
+    
     # 1. Check for duplicate awards in new data
     if new_award_ids:
         logger.info("Checking for duplicate awards...")
         
-        new_awards = db.query(Award).filter(Award.id.in_(new_award_ids)).all()
+        # Batch the query to avoid SQLite limits
+        new_awards = []
+        for i in range(0, len(new_award_ids), BATCH_SIZE):
+            batch_ids = new_award_ids[i:i + BATCH_SIZE]
+            new_awards.extend(db.query(Award).filter(Award.id.in_(batch_ids)).all())
         
         for award in new_awards:
             # Check if this looks like a duplicate of existing data
@@ -98,19 +105,27 @@ def run_post_import_analysis(
     if new_recipient_ids:
         logger.info("Checking for multi-source recipients...")
         
-        multi_source = db.query(
-            Recipient.id,
-            Recipient.name,
-            func.count(func.distinct(Award.source)).label("source_count")
-        ).join(
-            Award, Award.recipient_id == Recipient.id
-        ).filter(
-            Recipient.id.in_(new_recipient_ids)
-        ).group_by(
-            Recipient.id
-        ).having(
-            func.count(func.distinct(Award.source)) >= 2
-        ).all()
+        # Batch queries to avoid SQLite "too many SQL variables" error
+        multi_source = []
+        
+        for i in range(0, len(new_recipient_ids), BATCH_SIZE):
+            batch_ids = new_recipient_ids[i:i + BATCH_SIZE]
+            
+            batch_results = db.query(
+                Recipient.id,
+                Recipient.name,
+                func.count(func.distinct(Award.source)).label("source_count")
+            ).join(
+                Award, Award.recipient_id == Recipient.id
+            ).filter(
+                Recipient.id.in_(batch_ids)
+            ).group_by(
+                Recipient.id
+            ).having(
+                func.count(func.distinct(Award.source)) >= 2
+            ).all()
+            
+            multi_source.extend(batch_results)
         
         for r in multi_source:
             flags.append(FraudIndicator(
@@ -134,12 +149,18 @@ def run_post_import_analysis(
         if avg_amount > 0:
             threshold = avg_amount * 5  # 5x average
             
-            outliers = db.query(Award, Recipient).join(
-                Recipient, Award.recipient_id == Recipient.id
-            ).filter(
-                Award.id.in_(new_award_ids),
-                Award.amount > threshold
-            ).all()
+            # Batch the outlier query
+            outliers = []
+            for i in range(0, len(new_award_ids), BATCH_SIZE):
+                batch_ids = new_award_ids[i:i + BATCH_SIZE]
+                outliers.extend(
+                    db.query(Award, Recipient).join(
+                        Recipient, Award.recipient_id == Recipient.id
+                    ).filter(
+                        Award.id.in_(batch_ids),
+                        Award.amount > threshold
+                    ).all()
+                )
             
             for award, recipient in outliers:
                 flags.append(FraudIndicator(
