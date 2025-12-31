@@ -35,6 +35,9 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
+$VenvPython = Join-Path $ScriptDir ".venv\Scripts\python.exe"
+$VenvPip = Join-Path $ScriptDir ".venv\Scripts\pip.exe"
+
 # Banner
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
@@ -51,7 +54,7 @@ if ($Setup) {
     }
     
     Write-Host "Installing dependencies..."
-    & ".venv\Scripts\pip.exe" install -r requirements.txt
+    & $VenvPip install -r requirements.txt
     
     Write-Host "Creating data directory..."
     New-Item -ItemType Directory -Path "data" -Force | Out-Null
@@ -67,20 +70,16 @@ if ($Setup) {
 }
 
 # Check venv
-if (-not (Test-Path ".venv\Scripts\python.exe")) {
+if (-not (Test-Path $VenvPython)) {
     Write-Host "Virtual environment not found!" -ForegroundColor Red
     Write-Host "Run: .\start.ps1 -Setup"
     exit 1
 }
 
-# Activate venv
-$env:VIRTUAL_ENV = "$ScriptDir\.venv"
-$env:PATH = "$ScriptDir\.venv\Scripts;$env:PATH"
-
 # Status mode
 if ($Status) {
     Write-Host "`nDatabase Status" -ForegroundColor Yellow
-    & ".venv\Scripts\python.exe" -c "
+    & $VenvPython -c @"
 import sys
 sys.path.insert(0, '.')
 from app.database import get_db_info, get_db_context
@@ -88,7 +87,7 @@ from app.models import Award, Recipient
 from sqlalchemy import func
 
 info = get_db_info()
-print(f'Database: {info[\"type\"]}')
+print(f'Database: {info["type"]}')
 
 with get_db_context() as db:
     awards = db.query(func.count(Award.id)).scalar() or 0
@@ -98,7 +97,7 @@ with get_db_context() as db:
     print(f'Awards:     {awards:,}')
     print(f'Recipients: {recipients:,}')
     print(f'Total:      \${total:,.2f}')
-"
+"@
     exit 0
 }
 
@@ -116,7 +115,7 @@ Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
 Write-Host ""
 
 if ($Prod) {
-    & ".venv\Scripts\python.exe" run.py --port $Port --prod
+    & $VenvPython run.py --port $Port --prod
 } else {
-    & ".venv\Scripts\python.exe" run.py --port $Port
+    & $VenvPython run.py --port $Port
 }
