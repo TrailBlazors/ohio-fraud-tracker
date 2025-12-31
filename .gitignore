@@ -30,11 +30,14 @@ pip-wheel-metadata/
 *~
 
 # Data files (can be large)
-data/*.csv
-data/*.json
-data/*.xlsx
+data/**/*.csv
+data/**/*.json
+data/**/*.xlsx
 data/*.db
+*.db
 !data/.gitkeep
+!data/**/.gitkeep
+!data/**/README.md
 
 # API data
 api/data/
