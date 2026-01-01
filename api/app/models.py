@@ -221,29 +221,6 @@ class Award(Base):
 # SUPPLEMENTARY TABLES
 # =============================================================================
 
-class PPPLoan(Base):
-    """
-    SBA PPP-specific fields (linked to main Award)
-    Only stores PPP-specific data not in base Award table.
-    """
-    __tablename__ = "ppp_loans"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    award_id = Column(Integer, ForeignKey("awards.id"), unique=True, nullable=False)
-    
-    # PPP-specific fields
-    jobs_retained = Column(Integer, nullable=True)
-    loan_status = Column(String(50), nullable=True)  # Active, Paid in Full, etc.
-    forgiveness_amount = Column(Float, nullable=True)
-    forgiveness_date = Column(Date, nullable=True)
-    lender_name = Column(String(255), nullable=True)
-    naics_code = Column(String(6), nullable=True)
-    business_type = Column(String(100), nullable=True)  # LLC, Corp, Sole Prop, etc.
-    
-    # Relationship
-    award = relationship("Award")
-
-
 class FraudFlag(Base):
     """
     Flags for potential issues found during cross-referencing.
