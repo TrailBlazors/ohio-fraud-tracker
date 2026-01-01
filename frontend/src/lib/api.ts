@@ -75,6 +75,7 @@ export interface SearchParams {
   page_size?: number;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
+  skip_count?: boolean;
 }
 
 /**
@@ -171,7 +172,17 @@ export async function getAwardsByType(): Promise<Record<string, { count: number;
  * Get awards with filtering and pagination
  */
 export async function getAwards(params: SearchParams = {}): Promise<PaginatedResponse<Award>> {
-  const query = buildQueryString(params);
+  // Use skip_count for faster initial load when no filters active
+  const hasFilters = !!(params.q || params.agency_code || params.award_type || params.source || 
+                     params.min_amount || params.max_amount || params.start_date || params.end_date || params.city);
+  const isFirstPage = !params.page || params.page === 1;
+  
+  const queryParams: SearchParams = { ...params };
+  if (!hasFilters && isFirstPage) {
+    queryParams.skip_count = true;
+  }
+  
+  const query = buildQueryString(queryParams);
   return apiRequest<PaginatedResponse<Award>>(`/api/awards${query}`);
 }
 
@@ -202,7 +213,17 @@ export async function getAward(id: number): Promise<Award> {
  * Get recipients with filtering and pagination
  */
 export async function getRecipients(params: SearchParams = {}): Promise<PaginatedResponse<Recipient>> {
-  const query = buildQueryString(params);
+  // Use fast mode (no aggregation) and skip_count for faster initial load
+  const hasFilters = !!(params.q || params.city || (params as any).business_status || (params as any).has_awards);
+  const isFirstPage = !params.page || params.page === 1;
+  
+  const queryParams: any = { ...params };
+  if (!hasFilters && isFirstPage) {
+    queryParams.skip_count = true;
+    queryParams.fast = true;  // Skip expensive aggregation
+  }
+  
+  const query = buildQueryString(queryParams);
   return apiRequest<PaginatedResponse<Recipient>>(`/api/recipients${query}`);
 }
 

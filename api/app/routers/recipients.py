@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, asc, or_, and_, literal
 
 from app.database import get_db
-from app.models import Award, Recipient, Agency
+from app.models import Award, Recipient, Agency, FraudFlag, CachedStats
 from app.schemas import (
     RecipientListResponse,
     RecipientSummary,
@@ -49,114 +49,57 @@ async def get_flagged_recipients(
     db: Session = Depends(get_db)
 ):
     """
-    Get recipients with potential issues:
-    1. Business status is inactive/cancelled/dissolved (from Ohio SOS)
-    2. High concentration of awards (20+ awards)
-    3. Unusually large single awards ($50M+)
+    Get recipients with fraud flags from correlation analysis.
+    Uses pre-computed flags from fraud_flags table for fast loading.
     """
     
-    items = []
-    existing_ids = set()
+    # Query from fraud_flags table (fast)
+    query = db.query(
+        FraudFlag.id.label("flag_id"),
+        FraudFlag.flag_type,
+        FraudFlag.severity,
+        FraudFlag.description,
+        FraudFlag.recipient_id,
+        FraudFlag.created_at,
+        Recipient.name,
+        Recipient.city,
+        Recipient.business_status
+    ).join(
+        Recipient, FraudFlag.recipient_id == Recipient.id
+    ).filter(
+        FraudFlag.is_resolved == False,
+        FraudFlag.recipient_id.isnot(None)
+    ).order_by(
+        desc(FraudFlag.severity),
+        desc(FraudFlag.created_at)
+    )
     
-    try:
-        # Method 1: Inactive businesses with awards (requires Ohio SOS data)
-        inactive_query = db.query(
-            Recipient,
-            func.count(Award.id).label("total_awards"),
-            func.sum(Award.amount).label("total_amount")
-        ).join(Award, Award.recipient_id == Recipient.id)\
-         .filter(Recipient.business_status.in_(["inactive", "cancelled", "dissolved"]))\
-         .group_by(Recipient.id)\
-         .order_by(desc("total_amount"))\
-         .limit(100)
-        
-        for recipient, total_awards, total_amount in inactive_query.all():
-            items.append({
-                "id": recipient.id,
-                "name": recipient.name,
-                "city": recipient.city,
-                "business_status": recipient.business_status,
-                "total_awards": total_awards,
-                "total_amount": float(total_amount or 0),
-                "flag_reason": f"Business is {recipient.business_status} but received {total_awards} federal awards totaling ${float(total_amount or 0):,.0f}",
-                "flag_type": "inactive_business"
-            })
-            existing_ids.add(recipient.id)
-    except Exception as e:
-        print(f"Error in inactive query: {e}")
-    
-    try:
-        # Method 2: Recipients with high award counts (20+ awards)
-        high_count_query = db.query(
-            Recipient,
-            func.count(Award.id).label("total_awards"),
-            func.sum(Award.amount).label("total_amount")
-        ).join(Award, Award.recipient_id == Recipient.id)\
-         .group_by(Recipient.id)\
-         .having(func.count(Award.id) >= 20)\
-         .order_by(desc(func.count(Award.id)))\
-         .limit(100)
-        
-        for recipient, total_awards, total_amount in high_count_query.all():
-            if recipient.id not in existing_ids:
-                items.append({
-                    "id": recipient.id,
-                    "name": recipient.name,
-                    "city": recipient.city,
-                    "business_status": recipient.business_status,
-                    "total_awards": total_awards,
-                    "total_amount": float(total_amount or 0),
-                    "flag_reason": f"High award concentration: {total_awards} awards",
-                    "flag_type": "high_concentration"
-                })
-                existing_ids.add(recipient.id)
-    except Exception as e:
-        print(f"Error in high count query: {e}")
-    
-    try:
-        # Method 3: Recipients with very large single awards ($50M+)
-        large_award_threshold = 50_000_000
-        
-        large_award_query = db.query(
-            Recipient,
-            func.count(Award.id).label("total_awards"),
-            func.sum(Award.amount).label("total_amount"),
-            func.max(Award.amount).label("max_award")
-        ).join(Award, Award.recipient_id == Recipient.id)\
-         .group_by(Recipient.id)\
-         .having(func.max(Award.amount) >= large_award_threshold)\
-         .order_by(desc(func.max(Award.amount)))\
-         .limit(100)
-        
-        for recipient, total_awards, total_amount, max_award in large_award_query.all():
-            if recipient.id not in existing_ids:
-                items.append({
-                    "id": recipient.id,
-                    "name": recipient.name,
-                    "city": recipient.city,
-                    "business_status": recipient.business_status,
-                    "total_awards": total_awards,
-                    "total_amount": float(total_amount or 0),
-                    "flag_reason": f"Large single award: ${float(max_award or 0):,.0f}",
-                    "flag_type": "large_award"
-                })
-                existing_ids.add(recipient.id)
-    except Exception as e:
-        print(f"Error in large award query: {e}")
-    
-    # Sort all items by total_amount descending
-    items.sort(key=lambda x: x["total_amount"], reverse=True)
+    # Get total count (fast - just counting flags)
+    total_count = query.count()
     
     # Paginate
-    total_count = len(items)
-    start = (page - 1) * page_size
-    end = start + page_size
-    paginated_items = items[start:end]
+    offset = (page - 1) * page_size
+    results = query.offset(offset).limit(page_size).all()
+    
+    items = []
+    for row in results:
+        items.append({
+            "id": row.recipient_id,
+            "name": row.name,
+            "city": row.city,
+            "business_status": row.business_status,
+            "total_awards": 0,  # Skip expensive calculation
+            "total_amount": 0,
+            "flag_reason": row.description,
+            "flag_type": row.flag_type,
+            "severity": row.severity,
+            "flag_id": row.flag_id
+        })
     
     total_pages = (total_count + page_size - 1) // page_size if total_count else 0
     
     return {
-        "items": paginated_items,
+        "items": items,
         "page": page,
         "page_size": page_size,
         "total_count": total_count,
@@ -178,8 +121,10 @@ async def list_recipients(
     has_awards: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
-    sort_by: str = Query("total_amount", description="Sort field"),
-    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    sort_by: str = Query("name", description="Sort field"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    skip_count: bool = Query(False, description="Skip total count for faster response"),
+    fast: bool = Query(False, description="Fast mode - skip award aggregation"),
     db: Session = Depends(get_db)
 ):
     """
@@ -190,9 +135,56 @@ async def list_recipients(
     - city: Filter by city (partial match)
     - business_status: Filter by Ohio SOS status
     - has_awards: Only show recipients with awards
+    - skip_count: Skip total count for faster initial load
+    - fast: Skip award aggregation for much faster response
     """
     
-    # Base query with aggregates
+    has_filters = any([q, city, business_status, has_awards])
+    
+    # Fast mode - just get recipients without aggregation
+    if fast:
+        query = db.query(Recipient)
+        
+        if q:
+            search_term = f"%{q.lower()}%"
+            query = query.filter(func.lower(Recipient.name).like(search_term))
+        if city:
+            city_term = f"%{city.lower()}%"
+            query = query.filter(func.lower(Recipient.city).like(city_term))
+        if business_status:
+            query = query.filter(Recipient.business_status == business_status)
+        
+        # Get total count
+        if skip_count:
+            total_count = page * page_size + page_size
+        elif not has_filters:
+            cached = db.query(CachedStats).filter(CachedStats.stat_key == "total_recipients").first()
+            total_count = int(cached.stat_value) if cached else db.query(func.count(Recipient.id)).scalar() or 0
+        else:
+            total_count = query.count()
+        
+        # Sort and paginate
+        sort_col = getattr(Recipient, sort_by, Recipient.name)
+        query = query.order_by(asc(sort_col) if sort_order == "asc" else desc(sort_col))
+        results = query.offset((page - 1) * page_size).limit(page_size).all()
+        
+        items = [
+            RecipientSummary(
+                id=r.id, name=r.name, city=r.city, state=r.state,
+                zip_code=r.zip_code, business_status=r.business_status,
+                total_awards=0, total_amount=0.0
+            )
+            for r in results
+        ]
+        
+        total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+        return RecipientListResponse(
+            items=items, page=page, page_size=page_size,
+            total_count=total_count, total_pages=total_pages,
+            has_next=page < total_pages, has_prev=page > 1
+        )
+    
+    # Full mode with aggregation (slower)
     query = db.query(
         Recipient,
         func.count(Award.id).label("total_awards"),
@@ -200,25 +192,26 @@ async def list_recipients(
     ).outerjoin(Award, Award.recipient_id == Recipient.id)\
      .group_by(Recipient.id)
     
-    # Text search in name
     if q:
         search_term = f"%{q.lower()}%"
         query = query.filter(func.lower(Recipient.name).like(search_term))
-    
-    # City filter (partial match)
     if city:
         city_term = f"%{city.lower()}%"
         query = query.filter(func.lower(Recipient.city).like(city_term))
-    
     if business_status:
         query = query.filter(Recipient.business_status == business_status)
-    
     if has_awards:
         query = query.having(func.count(Award.id) > 0)
     
     # Get total count
-    count_query = query.subquery()
-    total_count = db.query(func.count()).select_from(count_query).scalar()
+    if skip_count:
+        total_count = page * page_size + page_size
+    elif not has_filters:
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == "total_recipients").first()
+        total_count = int(cached.stat_value) if cached else db.query(func.count(Recipient.id)).scalar() or 0
+    else:
+        count_query = query.subquery()
+        total_count = db.query(func.count()).select_from(count_query).scalar() or 0
     
     # Sorting
     sort_columns = {
@@ -227,43 +220,27 @@ async def list_recipients(
         "total_awards": "total_awards",
         "total_amount": "total_amount",
     }
-    
-    sort_col = sort_columns.get(sort_by, "total_amount")
-    
-    if sort_order == "asc":
-        query = query.order_by(asc(sort_col))
-    else:
-        query = query.order_by(desc(sort_col))
+    sort_col = sort_columns.get(sort_by, Recipient.name)
+    query = query.order_by(asc(sort_col) if sort_order == "asc" else desc(sort_col))
     
     # Pagination
-    offset = (page - 1) * page_size
-    results = query.offset(offset).limit(page_size).all()
+    results = query.offset((page - 1) * page_size).limit(page_size).all()
     
-    # Format results
     items = [
         RecipientSummary(
-            id=recipient.id,
-            name=recipient.name,
-            city=recipient.city,
-            state=recipient.state,
-            zip_code=recipient.zip_code,
+            id=recipient.id, name=recipient.name, city=recipient.city,
+            state=recipient.state, zip_code=recipient.zip_code,
             business_status=recipient.business_status,
-            total_awards=total_awards,
-            total_amount=float(total_amount)
+            total_awards=total_awards, total_amount=float(total_amount)
         )
         for recipient, total_awards, total_amount in results
     ]
     
     total_pages = (total_count + page_size - 1) // page_size if total_count else 0
-    
     return RecipientListResponse(
-        items=items,
-        page=page,
-        page_size=page_size,
-        total_count=total_count or 0,
-        total_pages=total_pages,
-        has_next=page < total_pages,
-        has_prev=page > 1
+        items=items, page=page, page_size=page_size,
+        total_count=total_count or 0, total_pages=total_pages,
+        has_next=page < total_pages, has_prev=page > 1
     )
 
 
