@@ -29,14 +29,14 @@ async def autocomplete_recipients(
 ):
     """Autocomplete search for recipient names"""
     
-    search_term = f"%{q.lower()}%"
+    search_term = f"%{q}%"
     
     results = db.query(
         Recipient.id,
         Recipient.name,
         Recipient.city
     ).filter(
-        func.lower(Recipient.name).like(search_term)
+        Recipient.name.ilike(search_term)
     ).order_by(Recipient.name).limit(limit).all()
     
     return [{"id": r.id, "name": r.name, "city": r.city} for r in results]
@@ -146,11 +146,11 @@ async def list_recipients(
         query = db.query(Recipient)
         
         if q:
-            search_term = f"%{q.lower()}%"
-            query = query.filter(func.lower(Recipient.name).like(search_term))
+            search_term = f"%{q}%"
+            query = query.filter(Recipient.name.ilike(search_term))
         if city:
-            city_term = f"%{city.lower()}%"
-            query = query.filter(func.lower(Recipient.city).like(city_term))
+            city_term = f"%{city}%"
+            query = query.filter(Recipient.city.ilike(city_term))
         if business_status:
             query = query.filter(Recipient.business_status == business_status)
         
@@ -193,11 +193,11 @@ async def list_recipients(
      .group_by(Recipient.id)
     
     if q:
-        search_term = f"%{q.lower()}%"
-        query = query.filter(func.lower(Recipient.name).like(search_term))
+        search_term = f"%{q}%"
+        query = query.filter(Recipient.name.ilike(search_term))
     if city:
-        city_term = f"%{city.lower()}%"
-        query = query.filter(func.lower(Recipient.city).like(city_term))
+        city_term = f"%{city}%"
+        query = query.filter(Recipient.city.ilike(city_term))
     if business_status:
         query = query.filter(Recipient.business_status == business_status)
     if has_awards:

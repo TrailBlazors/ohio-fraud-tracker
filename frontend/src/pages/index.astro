@@ -46,20 +46,20 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
 
 <DashboardLayout title="Dashboard">
   <!-- Beta / Work in Progress Banner -->
-  <div class="mb-6 p-4 rounded-lg bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/30 dark:to-blue-900/30 border border-primary-200 dark:border-primary-700">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div class="flex items-start gap-3">
-        <div class="p-2 bg-primary-100 dark:bg-primary-800 rounded-lg">
-          <svg class="w-6 h-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <div class="mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg bg-gradient-to-r from-primary-50 to-blue-50 dark:from-primary-900/30 dark:to-blue-900/30 border border-primary-200 dark:border-primary-700">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex items-start gap-2 sm:gap-3">
+        <div class="p-1.5 sm:p-2 bg-primary-100 dark:bg-primary-800 rounded-lg flex-shrink-0">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
           </svg>
         </div>
         <div>
-          <div class="flex items-center gap-2">
-            <h3 class="font-semibold text-primary-800 dark:text-primary-300">Work in Progress</h3>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="font-semibold text-primary-800 dark:text-primary-300 text-sm sm:text-base">Work in Progress</h3>
             <span class="px-2 py-0.5 text-xs font-medium bg-primary-200 dark:bg-primary-700 text-primary-800 dark:text-primary-200 rounded-full">BETA</span>
           </div>
-          <p class="text-sm text-primary-700 dark:text-primary-400 mt-1">
+          <p class="text-xs sm:text-sm text-primary-700 dark:text-primary-400 mt-1">
             This transparency tool is under active development. Data imports are ongoing and fraud detection algorithms are being refined. 
             We welcome your feedback, feature requests, and bug reports!
           </p>
@@ -67,25 +67,11 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
       </div>
       <div class="flex flex-col sm:flex-row gap-2">
         <a href="mailto:support@ohiofraudtracker.org" 
-           class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+           class="inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
           </svg>
           Send Feedback
-        </a>
-        <a href="https://buymeacoffee.com/frVc2JO" 
-           target="_blank"
-           rel="noopener noreferrer"
-           class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-amber-900 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg whitespace-nowrap">
-          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 19V8.5C4 7.67 4.67 7 5.5 7H16.5C17.33 7 18 7.67 18 8.5V9H19C20.1 9 21 9.9 21 11V13C21 14.1 20.1 15 19 15H18V15.5C18 16.33 17.33 17 16.5 17H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18 9V15" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M7 7V5C7 4.45 7.45 4 8 4H14C14.55 4 15 4.45 15 5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M5 17C5 17 6 19 8 19C10 19 11 17 11 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M8 12V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M11 11V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          Buy Me a Coffee
         </a>
       </div>
     </div>
@@ -123,59 +109,59 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
   )}
 
   <!-- Stats Cards -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
     <div class="stat-card">
       <div class="flex items-center">
-        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md shadow-blue-500/20">
-          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md shadow-blue-500/20">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
           </svg>
         </div>
-        <div class="ms-4">
-          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Total Funding</h3>
-          <p class="text-2xl font-bold text-gray-900 dark:text-white">${formatNumber(stats.total_amount)}</p>
+        <div class="ms-3 sm:ms-4">
+          <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Total Funding</h3>
+          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">${formatNumber(stats.total_amount)}</p>
         </div>
       </div>
     </div>
     
     <div class="stat-card">
       <div class="flex items-center">
-        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md shadow-green-500/20">
-          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md shadow-green-500/20">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V8z" clip-rule="evenodd"></path>
           </svg>
         </div>
-        <div class="ms-4">
-          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Total Awards</h3>
-          <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_awards.toLocaleString()}</p>
+        <div class="ms-3 sm:ms-4">
+          <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Total Awards</h3>
+          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.total_awards.toLocaleString()}</p>
         </div>
       </div>
     </div>
     
     <div class="stat-card">
       <div class="flex items-center">
-        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md shadow-purple-500/20">
-          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md shadow-purple-500/20">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 20 20">
             <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
           </svg>
         </div>
-        <div class="ms-4">
-          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Recipients</h3>
-          <p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_recipients.toLocaleString()}</p>
+        <div class="ms-3 sm:ms-4">
+          <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Recipients</h3>
+          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.total_recipients.toLocaleString()}</p>
         </div>
       </div>
     </div>
     
     <a href="/flagged" class="stat-card hover:ring-2 hover:ring-red-500/50 transition-all">
       <div class="flex items-center">
-        <div class="inline-flex flex-shrink-0 justify-center items-center w-12 h-12 text-white bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-md shadow-red-500/20">
-          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-md shadow-red-500/20">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
           </svg>
         </div>
-        <div class="ms-4">
-          <h3 class="mb-1 text-sm font-medium text-gray-500 dark:text-gray-400">Flagged Issues</h3>
-          <p class="text-2xl font-bold text-gray-900 dark:text-white">
+        <div class="ms-3 sm:ms-4">
+          <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Flagged Issues</h3>
+          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">
             {stats.total_flagged.toLocaleString()}
             {stats.correlation_status === 'not_run' && stats.total_awards > 0 && (
               <span class="text-sm font-normal text-amber-500 ml-2">⚠️</span>
@@ -188,30 +174,30 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
 
   <!-- Data Sources Row -->
   {Object.keys(stats.awards_by_source).length > 0 && (
-    <div class="mb-6">
+    <div class="mb-4 sm:mb-6">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Data Sources</h3>
-        <a href="/data-status" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">
+        <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Data Sources</h3>
+        <a href="/data-status" class="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">
           View details →
         </a>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {Object.entries(stats.awards_by_source).map(([source, data]) => {
           const config = sourceConfig[source] || { name: source, icon: '📄', color: 'from-gray-500 to-gray-600', link: '/grants' };
           return (
-            <a href={config.link} class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow">
+            <a href={config.link} class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 sm:p-4 hover:shadow-lg transition-shadow">
               <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                  <div class={`inline-flex flex-shrink-0 justify-center items-center w-10 h-10 text-white bg-gradient-to-br ${config.color} rounded-lg text-lg`}>
+                <div class="flex items-center gap-2 sm:gap-3">
+                  <div class={`inline-flex flex-shrink-0 justify-center items-center w-8 h-8 sm:w-10 sm:h-10 text-white bg-gradient-to-br ${config.color} rounded-lg text-sm sm:text-lg`}>
                     {config.icon}
                   </div>
                   <div>
-                    <p class="font-medium text-gray-900 dark:text-white">{config.name}</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">{data.count.toLocaleString()} records</p>
+                    <p class="font-medium text-gray-900 dark:text-white text-sm">{config.name}</p>
+                    <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{data.count.toLocaleString()} records</p>
                   </div>
                 </div>
                 <div class="text-right">
-                  <p class="text-lg font-bold text-green-600 dark:text-green-400">${formatNumber(data.total)}</p>
+                  <p class="text-sm sm:text-lg font-bold text-green-600 dark:text-green-400">${formatNumber(data.total)}</p>
                 </div>
               </div>
             </a>
@@ -222,10 +208,10 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
   )}
 
   <!-- Charts Row -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 sm:mb-6">
     <!-- Awards by Type -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Awards by Type</h3>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
+      <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">Awards by Type</h3>
       <div id="awards-by-type-chart">
         <div class="flex items-center justify-center py-8">
           <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -238,8 +224,8 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
     </div>
     
     <!-- Top Agencies -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Agencies by Funding</h3>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
+      <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Agencies by Funding</h3>
       <div id="top-agencies-list">
         <div class="flex items-center justify-center py-8">
           <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
@@ -254,8 +240,8 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
 
   <!-- Recent Awards Table -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-    <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Awards</h3>
+    <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+      <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Recent Awards</h3>
     </div>
     <div id="recent-awards-container">
       <div class="flex items-center justify-center py-12">

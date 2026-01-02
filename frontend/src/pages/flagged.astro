@@ -39,16 +39,16 @@ function getFlagTypeStyle(flagType: string) {
   )}
 
   <!-- Info banner -->
-  <div class="p-4 mb-6 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+  <div class="p-3 sm:p-4 mb-6 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
     <div class="flex items-center text-blue-800 dark:text-blue-300 mb-3">
       <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
       </svg>
       <span class="font-medium">What gets flagged:</span>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 flex-shrink-0">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div class="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+        <span class="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 flex-shrink-0 text-sm">
           ⚠️
         </span>
         <div>
@@ -56,8 +56,8 @@ function getFlagTypeStyle(flagType: string) {
           <p class="text-xs text-gray-600 dark:text-gray-400">Businesses with inactive/dissolved status receiving federal funds</p>
         </div>
       </div>
-      <div class="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 flex-shrink-0">
+      <div class="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+        <span class="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 flex-shrink-0 text-sm">
           📊
         </span>
         <div>
@@ -65,8 +65,8 @@ function getFlagTypeStyle(flagType: string) {
           <p class="text-xs text-gray-600 dark:text-gray-400">Unusually high number of awards (20+ awards)</p>
         </div>
       </div>
-      <div class="flex items-start gap-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-        <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex-shrink-0">
+      <div class="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+        <span class="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex-shrink-0 text-sm">
           💰
         </span>
         <div>
@@ -86,7 +86,48 @@ function getFlagTypeStyle(flagType: string) {
 
   <!-- Flagged Table -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-    <div class="overflow-x-auto">
+    <!-- Mobile Card View -->
+    <div class="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+      {flagged.items.map((item) => {
+        const flagStyle = getFlagTypeStyle(item.flag_type);
+        return (
+          <a href={`/recipients/${item.id}`} class="block p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+            <div class="flex justify-between items-start mb-2">
+              <span class="font-medium text-gray-900 dark:text-white text-sm truncate flex-1 mr-2">{item.name}</span>
+              <span class="font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">
+                {formatCurrency(item.total_amount)}
+              </span>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-2">
+              <span class={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${flagStyle.bg} ${flagStyle.text}`}>
+                <span>{flagStyle.icon}</span>
+                <span>{flagStyle.label}</span>
+              </span>
+              <span class={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${item.business_status === 'unknown' ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400' : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400'}`}>
+                {item.business_status}
+              </span>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{item.flag_reason}</p>
+            <div class="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <span>{item.city || 'Ohio'}</span>
+              <span>{item.total_awards} awards</span>
+            </div>
+          </a>
+        );
+      })}
+      {flagged.items.length === 0 && !error && (
+        <div class="p-8 text-center">
+          <svg class="w-12 h-12 text-green-500 mx-auto mb-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+          </svg>
+          <p class="font-medium text-gray-900 dark:text-white">No flagged recipients</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">All recipients appear normal</p>
+        </div>
+      )}
+    </div>
+    
+    <!-- Desktop Table View -->
+    <div class="hidden sm:block overflow-x-auto">
       <table class="w-full text-sm text-left">
         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
           <tr class="text-gray-600 dark:text-gray-300">

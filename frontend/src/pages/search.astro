@@ -1,20 +1,11 @@
 ---
 import DashboardLayout from '../layouts/DashboardLayout.astro';
-import { getAwards, formatCurrency, formatDate, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass } from '../lib/api';
+import { formatCurrency, formatDate, getAwardTypeName, getAwardTypeChipClass, getAgencyChipClass } from '../lib/api';
 
 const url = new URL(Astro.request.url);
 const q = url.searchParams.get('q') || '';
 
-let results = null;
-let error = null;
-
-if (q) {
-  try {
-    results = await getAwards({ q, page_size: 50 });
-  } catch (e) {
-    error = 'Search failed. Make sure the API is running.';
-  }
-}
+// Don't do server-side search - let client-side handle it for speed
 ---
 
 <DashboardLayout title="Search">
@@ -24,8 +15,8 @@ if (q) {
   </div>
 
   <!-- Search Box -->
-  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-    <form method="get" class="flex gap-4">
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 mb-6">
+    <form id="search-form" class="flex flex-col sm:flex-row gap-3 sm:gap-4">
       <div class="flex-1">
         <label for="q" class="sr-only">Search</label>
         <div class="relative">
@@ -35,11 +26,11 @@ if (q) {
             </svg>
           </div>
           <input type="text" id="q" name="q" value={q}
-            class="block w-full p-4 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
-            placeholder="Search by recipient name, keyword, city..." />
+            class="block w-full p-3 sm:p-4 pl-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white"
+            placeholder="Search by recipient name..." />
         </div>
       </div>
-      <button type="submit" class="px-6 py-4 text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm dark:bg-primary-600 dark:hover:bg-primary-700">
+      <button type="submit" id="search-btn" class="px-6 py-3 sm:py-4 text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm dark:bg-primary-600 dark:hover:bg-primary-700">
         Search
       </button>
     </form>
@@ -47,25 +38,35 @@ if (q) {
     <!-- Quick searches -->
     <div class="mt-4 flex flex-wrap gap-2">
       <span class="text-sm text-gray-500 dark:text-gray-400">Try:</span>
-      <a href="?q=Ohio State University" class="text-sm text-primary-600 hover:underline dark:text-primary-400">Ohio State University</a>
-      <a href="?q=Cleveland" class="text-sm text-primary-600 hover:underline dark:text-primary-400">Cleveland</a>
-      <a href="?q=hospital" class="text-sm text-primary-600 hover:underline dark:text-primary-400">hospital</a>
-      <a href="?q=transportation" class="text-sm text-primary-600 hover:underline dark:text-primary-400">transportation</a>
+      <button data-search="Ohio State University" class="quick-search text-sm text-primary-600 hover:underline dark:text-primary-400">Ohio State University</button>
+      <button data-search="Cleveland" class="quick-search text-sm text-primary-600 hover:underline dark:text-primary-400">Cleveland</button>
+      <button data-search="hospital" class="quick-search text-sm text-primary-600 hover:underline dark:text-primary-400">hospital</button>
+      <button data-search="transportation" class="quick-search text-sm text-primary-600 hover:underline dark:text-primary-400">transportation</button>
     </div>
   </div>
 
-  {error && (
-    <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
-      <span class="font-medium">Error:</span> {error}
+  <!-- Results Container -->
+  <div id="results-container">
+    <!-- Initial state -->
+    <div id="empty-state" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+      <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+      </svg>
+      <p class="text-gray-500 dark:text-gray-400">Enter a search term to find awards and recipients</p>
     </div>
-  )}
-
-  <!-- Results -->
-  {results && (
-    <div>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Found {results.total_count.toLocaleString()} results for "<span class="font-medium text-gray-900 dark:text-white">{q}</span>"
-      </p>
+    
+    <!-- Loading state (hidden) -->
+    <div id="loading-state" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+      <svg class="animate-spin h-12 w-12 mx-auto text-primary-600 mb-4" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-gray-500 dark:text-gray-400">Searching...</p>
+    </div>
+    
+    <!-- Results (hidden) -->
+    <div id="results-state" class="hidden">
+      <p id="results-count" class="text-sm text-gray-500 dark:text-gray-400 mb-4"></p>
       
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div class="overflow-x-auto">
@@ -79,63 +80,147 @@ if (q) {
                 <th class="px-3 py-2 w-24 text-right">Date</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-              {results.items.map((award) => (
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td class="px-3 py-2">
-                    <div class="font-medium text-gray-900 dark:text-white truncate max-w-xs">{award.recipient_name}</div>
-                    {award.recipient_city && (
-                      <div class="text-xs text-gray-500 dark:text-gray-400">{award.recipient_city}</div>
-                    )}
-                  </td>
-                  <td class="px-3 py-2 text-center">
-                    {award.agency_code ? (
-                      <span class={`chip text-xs ${getAgencyChipClass(award.agency_code)}`}>
-                        {award.agency_code}
-                      </span>
-                    ) : (
-                      <span class="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td class="px-3 py-2 text-center">
-                    <span class={`chip text-xs ${getAwardTypeChipClass(award.award_type)}`}>
-                      {getAwardTypeName(award.award_type)}
-                    </span>
-                  </td>
-                  <td class="px-3 py-2 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-                    {formatCurrency(award.amount)}
-                  </td>
-                  <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                    {formatDate(award.award_date)}
-                  </td>
-                </tr>
-              ))}
-              {results.items.length === 0 && (
-                <tr>
-                  <td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">
-                    No results found for "{q}"
-                  </td>
-                </tr>
-              )}
+            <tbody id="results-body" class="divide-y divide-gray-200 dark:divide-gray-700">
             </tbody>
           </table>
         </div>
       </div>
       
-      {results.total_count > 50 && (
-        <p class="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
-          Showing first 50 results. <a href={`/grants?q=${encodeURIComponent(q)}`} class="text-primary-600 hover:underline dark:text-primary-400">View all in Grants →</a>
-        </p>
-      )}
+      <p id="more-results" class="hidden text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
+        Showing first 50 results. <a id="view-all-link" href="/grants" class="text-primary-600 hover:underline dark:text-primary-400">View all in Grants →</a>
+      </p>
     </div>
-  )}
+    
+    <!-- Error state (hidden) -->
+    <div id="error-state" class="hidden p-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+      <span class="font-medium">Error:</span> <span id="error-message">Search failed</span>
+    </div>
+  </div>
 
-  {!q && (
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
-      <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="currentColor" viewBox="0 0 20 20">
-        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
-      </svg>
-      <p class="text-gray-500 dark:text-gray-400">Enter a search term to find awards and recipients</p>
-    </div>
-  )}
+  <script is:inline>
+    const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+    
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: 'USD',
+        minimumFractionDigits: 0, maximumFractionDigits: 0
+      }).format(amount);
+    }
+    
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    }
+    
+    function getAwardTypeName(type) {
+      const names = {
+        block_grant: 'Block Grant', formula_grant: 'Formula Grant',
+        project_grant: 'Project Grant', cooperative_agreement: 'Cooperative',
+        direct_loan: 'Direct Loan', guaranteed_loan: 'Guaranteed Loan',
+        direct_payment: 'Direct Payment', loan: 'PPP Loan', contract: 'Contract'
+      };
+      return names[type] || type || 'Other';
+    }
+    
+    function showState(state) {
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('loading-state').classList.add('hidden');
+      document.getElementById('results-state').classList.add('hidden');
+      document.getElementById('error-state').classList.add('hidden');
+      document.getElementById(state + '-state').classList.remove('hidden');
+    }
+    
+    async function doSearch(query) {
+      if (!query || query.length < 2) {
+        showState('empty');
+        return;
+      }
+      
+      showState('loading');
+      
+      try {
+        const response = await fetch(`${apiBase}/api/search/fast?q=${encodeURIComponent(query)}&limit=50`);
+        if (!response.ok) throw new Error('Search failed');
+        const data = await response.json();
+        
+        if (data.items.length === 0) {
+          document.getElementById('results-count').textContent = `No results found for "${query}"`;
+          document.getElementById('results-body').innerHTML = `
+            <tr><td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">
+              No results found for "${query}"
+            </td></tr>
+          `;
+        } else {
+          document.getElementById('results-count').textContent = 
+            `Found ${data.total_count} results for "${query}"${data.has_more ? ' (showing top 50)' : ''}`;
+          
+          document.getElementById('results-body').innerHTML = data.items.map(award => `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <td class="px-3 py-2">
+                <div class="font-medium text-gray-900 dark:text-white truncate max-w-xs">${award.recipient_name}</div>
+                ${award.recipient_city ? `<div class="text-xs text-gray-500 dark:text-gray-400">${award.recipient_city}</div>` : ''}
+              </td>
+              <td class="px-3 py-2 text-center">
+                ${award.agency_code ? `<span class="chip text-xs chip-agency">${award.agency_code}</span>` : '<span class="text-gray-400">—</span>'}
+              </td>
+              <td class="px-3 py-2 text-center">
+                <span class="chip text-xs">${getAwardTypeName(award.award_type)}</span>
+              </td>
+              <td class="px-3 py-2 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+                ${formatCurrency(award.amount)}
+              </td>
+              <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                ${formatDate(award.award_date)}
+              </td>
+            </tr>
+          `).join('');
+        }
+        
+        // Show "view all" link if there might be more results
+        const moreEl = document.getElementById('more-results');
+        if (data.has_more) {
+          document.getElementById('view-all-link').href = `/grants?q=${encodeURIComponent(query)}`;
+          moreEl.classList.remove('hidden');
+        } else {
+          moreEl.classList.add('hidden');
+        }
+        
+        showState('results');
+        
+        // Update URL without reload
+        const url = new URL(window.location);
+        url.searchParams.set('q', query);
+        window.history.replaceState({}, '', url);
+        
+      } catch (err) {
+        document.getElementById('error-message').textContent = err.message || 'Search failed';
+        showState('error');
+      }
+    }
+    
+    // Form submit
+    document.getElementById('search-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      doSearch(document.getElementById('q').value);
+    });
+    
+    // Quick search buttons
+    document.querySelectorAll('.quick-search').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const query = btn.dataset.search;
+        document.getElementById('q').value = query;
+        doSearch(query);
+      });
+    });
+    
+    // Auto-search if query in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialQuery = urlParams.get('q');
+    if (initialQuery) {
+      document.getElementById('q').value = initialQuery;
+      doSearch(initialQuery);
+    }
+  </script>
 </DashboardLayout>

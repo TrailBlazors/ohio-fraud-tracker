@@ -17,12 +17,21 @@
 @layer components {
   /* Stat cards */
   .stat-card {
-    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-6;
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6;
+  }
+  
+  /* Responsive table wrapper */
+  .table-responsive {
+    @apply overflow-x-auto -mx-4 sm:mx-0;
+  }
+  
+  .table-responsive table {
+    @apply min-w-[640px] sm:min-w-full;
   }
   
   /* Data tables - ensure all text has proper dark mode colors */
   .data-table {
-    @apply w-full text-sm text-left text-gray-600 dark:text-gray-300 table-fixed;
+    @apply w-full text-sm text-left text-gray-600 dark:text-gray-300;
   }
   
   .data-table thead {
@@ -30,11 +39,11 @@
   }
   
   .data-table thead th {
-    @apply text-gray-600 dark:text-gray-300 px-4 py-3 font-semibold;
+    @apply text-gray-600 dark:text-gray-300 px-3 sm:px-4 py-2 sm:py-3 font-semibold;
   }
   
   .data-table td {
-    @apply px-4 py-3 text-gray-600 dark:text-gray-300;
+    @apply px-3 sm:px-4 py-2 sm:py-3 text-gray-600 dark:text-gray-300;
   }
   
   .data-table tbody tr {
@@ -178,5 +187,40 @@
   /* Font styles in tables */
   table .font-medium {
     @apply text-gray-800 dark:text-white;
+  }
+}
+
+/* Mobile-specific improvements */
+@layer utilities {
+  /* Hide on mobile, show on larger screens */
+  .mobile-hide {
+    @apply hidden sm:block;
+  }
+  
+  /* Truncate text with ellipsis */
+  .text-truncate {
+    @apply truncate max-w-[150px] sm:max-w-[200px] lg:max-w-none;
+  }
+  
+  /* Responsive padding */
+  .p-responsive {
+    @apply p-3 sm:p-4 lg:p-6;
+  }
+  
+  /* Responsive text sizes */
+  .text-responsive-sm {
+    @apply text-xs sm:text-sm;
+  }
+  
+  .text-responsive-base {
+    @apply text-sm sm:text-base;
+  }
+  
+  .text-responsive-lg {
+    @apply text-base sm:text-lg lg:text-xl;
+  }
+  
+  .text-responsive-xl {
+    @apply text-lg sm:text-xl lg:text-2xl;
   }
 }

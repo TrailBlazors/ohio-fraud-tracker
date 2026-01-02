@@ -43,25 +43,25 @@ try {
       </div>
 
       <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
           <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Funding</p>
-          <p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-2">
+          <p class="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400 mt-2">
             ${formatNumber(recipient.total_amount)}
           </p>
         </div>
         
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
           <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Awards</p>
-          <p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+          <p class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-2">
             {recipient.total_awards}
           </p>
         </div>
         
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
           <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Business Status</p>
           <p class="mt-2">
-            <span class={`badge text-lg px-3 py-1 ${recipient.business_status === 'active' ? 'badge-success' : recipient.business_status === 'unknown' ? 'badge-warning' : 'badge-danger'}`}>
+            <span class={`badge text-base sm:text-lg px-3 py-1 ${recipient.business_status === 'active' ? 'badge-success' : recipient.business_status === 'unknown' ? 'badge-warning' : 'badge-danger'}`}>
               {recipient.business_status}
             </span>
           </p>
@@ -70,10 +70,40 @@ try {
 
       <!-- Awards Table -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Awards History</h3>
         </div>
-        <div class="overflow-x-auto">
+        
+        <!-- Mobile Card View -->
+        <div class="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+          {awards?.items.map((award) => (
+            <div class="p-4">
+              <div class="flex justify-between items-start mb-2">
+                <span class={`badge ${getAwardTypeBadgeClass(award.award_type)}`}>
+                  {getAwardTypeName(award.award_type)}
+                </span>
+                <span class="font-semibold text-green-600 dark:text-green-400">
+                  {formatCurrency(award.amount)}
+                </span>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-2">
+                {award.description || 'No description'}
+              </p>
+              <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>{award.agency_code || '—'}</span>
+                <span>{formatDate(award.award_date)}</span>
+              </div>
+            </div>
+          ))}
+          {(!awards || awards.items.length === 0) && (
+            <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+              No awards found for this recipient
+            </div>
+          )}
+        </div>
+        
+        <!-- Desktop Table View -->
+        <div class="hidden sm:block overflow-x-auto">
           <table class="w-full text-sm text-left">
             <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
               <tr class="text-gray-600 dark:text-gray-300">
