@@ -550,19 +550,32 @@ async def get_data_status(db: Session = Depends(get_db)):
     
     # Get totals from cache
     totals_cache = db.query(CachedStats).filter(
-        CachedStats.stat_key.in_(["total_awards", "total_amount", "total_recipients"])
+        CachedStats.stat_key.in_([
+            "total_awards", "total_amount", "total_recipients",
+            "recipients_with_naics", "recipients_with_business_type"
+        ])
     ).all()
     totals_dict = {r.stat_key: r.stat_value for r in totals_cache}
+    
+    # Get recipients_by_status from cache
+    status_cache = db.query(CachedStats).filter(CachedStats.stat_key == "recipients_by_status").first()
+    recipients_by_status = []
+    if status_cache and status_cache.stat_json:
+        recipients_by_status = json.loads(status_cache.stat_json)
     
     # Fast agency count (small table)
     agency_count = db.query(func.count(Agency.id)).scalar() or 0
     
+    total_recipients = int(totals_dict.get("total_recipients", 0))
+    recipients_with_naics = int(totals_dict.get("recipients_with_naics", 0))
+    recipients_with_business_type = int(totals_dict.get("recipients_with_business_type", 0))
+    
     totals = {
         "total_awards": int(totals_dict.get("total_awards", 0)),
         "total_amount": float(totals_dict.get("total_amount", 0)),
-        "total_recipients": int(totals_dict.get("total_recipients", 0)),
+        "total_recipients": total_recipients,
         "total_agencies": agency_count,
-        "recipients_with_naics": 0,  # Skip expensive query
+        "recipients_with_naics": recipients_with_naics,
         "naics_codes_loaded": 0
     }
     
@@ -570,10 +583,10 @@ async def get_data_status(db: Session = Depends(get_db)):
         "sources": sources,
         "totals": totals,
         "recipients": {
-            "total": totals["total_recipients"],
-            "with_naics": 0,
-            "with_business_type": 0,
-            "by_status": []
+            "total": total_recipients,
+            "with_naics": recipients_with_naics,
+            "with_business_type": recipients_with_business_type,
+            "by_status": recipients_by_status
         }
     }
     set_cached("data_status", result)

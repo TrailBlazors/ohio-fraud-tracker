@@ -157,6 +157,46 @@ def refresh_cached_stats():
             print(f"  ✓ awards_by_type: {len(awards_by_type)} types")
             print(f"  ✓ top_agencies: {len(top_agencies)} agencies")
             
+            # Recipient data quality stats
+            print("  Computing recipient data quality...")
+            recipients_with_naics = conn.execute(text(
+                "SELECT COUNT(*) FROM recipients WHERE naics_code IS NOT NULL AND naics_code != ''"
+            )).scalar() or 0
+            recipients_with_business_type = conn.execute(text(
+                "SELECT COUNT(*) FROM recipients WHERE business_type IS NOT NULL AND business_type != ''"
+            )).scalar() or 0
+            
+            # Recipients by status
+            status_rows = conn.execute(text("""
+                SELECT business_status, COUNT(*) as count 
+                FROM recipients 
+                GROUP BY business_status
+            """)).fetchall()
+            recipients_by_status = [{"status": row[0] or "unknown", "count": row[1]} for row in status_rows]
+            
+            # Add recipient stats to cache
+            recipient_stats = [
+                ("recipients_with_naics", recipients_with_naics, None),
+                ("recipients_with_business_type", recipients_with_business_type, None),
+                ("recipients_by_status", 0, json.dumps(recipients_by_status)),
+            ]
+            
+            for key, value, json_val in recipient_stats:
+                conn.execute(text("""
+                    INSERT INTO cached_stats (stat_key, stat_value, stat_json, updated_at)
+                    VALUES (:key, :value, :json, :now)
+                    ON CONFLICT(stat_key) DO UPDATE SET 
+                        stat_value = :value, 
+                        stat_json = :json,
+                        updated_at = :now
+                """), {"key": key, "value": value, "json": json_val, "now": datetime.utcnow()})
+            
+            conn.commit()
+            
+            print(f"  ✓ recipients_with_naics: {recipients_with_naics:,} ({100*recipients_with_naics/total_recipients:.1f}%)" if total_recipients > 0 else "  ✓ recipients_with_naics: 0")
+            print(f"  ✓ recipients_with_business_type: {recipients_with_business_type:,} ({100*recipients_with_business_type/total_recipients:.1f}%)" if total_recipients > 0 else "  ✓ recipients_with_business_type: 0")
+            print(f"  ✓ recipients_by_status: {len(recipients_by_status)} statuses")
+            
     finally:
         db.close()
     
