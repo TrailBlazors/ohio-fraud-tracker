@@ -93,9 +93,11 @@
 - **Why Important:** Any excluded entity receiving federal funds = automatic red flag
 - **Acquisition:** Public download: https://oig.hhs.gov/exclusions/exclusions_list.asp
 - **Implementation:**
-  - [ ] Download LEIE database
-  - [ ] Match against recipient names/addresses
-  - [ ] Auto-flag any matches
+  - [x] Download LEIE database
+  - [x] Match against recipient names/addresses
+  - [x] Auto-flag any matches
+- **Script:** `api/scripts/import_leie.py`
+- **Status:** ✅ READY TO RUN
 - **Difficulty:** Easy
 - **Timeline:** 1 week
 
