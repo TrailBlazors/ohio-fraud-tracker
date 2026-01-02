@@ -76,6 +76,7 @@ export interface SearchParams {
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
   skip_count?: boolean;
+  fast?: boolean;
 }
 
 /**

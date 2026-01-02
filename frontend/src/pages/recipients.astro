@@ -6,14 +6,18 @@ const url = new URL(Astro.request.url);
 const page = parseInt(url.searchParams.get('page') || '1');
 const q = url.searchParams.get('q') || '';
 const city = url.searchParams.get('city') || '';
-const sort_by = url.searchParams.get('sort_by') || 'total_amount';
-const sort_order = url.searchParams.get('sort_order') || 'desc';
+const sort_by = url.searchParams.get('sort_by') || 'name';
+const sort_order = url.searchParams.get('sort_order') || 'asc';
 
 let recipients;
 let error = null;
 
 try {
-  recipients = await getRecipients({ q, city, page, page_size: 25, sort_by, sort_order });
+  recipients = await getRecipients({ 
+    q, city, page, page_size: 25, sort_by, sort_order,
+    skip_count: true,
+    fast: true  // Skip expensive award aggregation
+  });
 } catch (e) {
   error = 'Unable to load recipients. Make sure the API is running.';
   recipients = { items: [], total_count: 0, total_pages: 0, page: 1, has_next: false, has_prev: false };
@@ -45,22 +49,22 @@ const buildUrl = (newPage: number) => {
 
   <!-- Filters -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
-    <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
+    <form method="get" class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div class="sm:col-span-1">
         <label for="q" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Search</label>
         <input type="text" id="q" name="q" value={q}
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="Organization name..." />
       </div>
       
-      <div>
+      <div class="sm:col-span-1">
         <label for="city" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">City</label>
         <input type="text" id="city" name="city" value={city}
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="e.g., Columbus, Cleveland..." />
       </div>
       
-      <div class="flex items-end">
+      <div class="flex items-end sm:col-span-1">
         <button type="submit" class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700">
           Search
         </button>
@@ -81,7 +85,7 @@ const buildUrl = (newPage: number) => {
   <!-- Recipients Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
     {recipients.items.map((recipient) => (
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 hover:shadow-lg transition-shadow">
+      <a href={`/recipients/${recipient.id}`} class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 hover:shadow-lg transition-shadow block">
         <div class="flex justify-between items-start mb-3">
           <div class="flex-1 min-w-0">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white truncate" title={recipient.name}>
@@ -97,24 +101,13 @@ const buildUrl = (newPage: number) => {
           </span>
         </div>
         
-        <div class="grid grid-cols-2 gap-4 mt-4">
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Total Funding</p>
-            <p class="text-lg font-bold text-green-600 dark:text-green-400">${formatNumber(recipient.total_amount)}</p>
-          </div>
-          <div>
-            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase">Awards</p>
-            <p class="text-lg font-bold text-gray-900 dark:text-white">{recipient.total_awards}</p>
-          </div>
-        </div>
-        
-        <a href={`/recipients/${recipient.id}`} class="mt-4 inline-flex items-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400">
+        <div class="mt-4 text-sm text-primary-600 dark:text-primary-400 flex items-center">
           View Details
           <svg class="w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"></path>
           </svg>
-        </a>
-      </div>
+        </div>
+      </a>
     ))}
   </div>
 
