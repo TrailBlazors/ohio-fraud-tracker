@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, text
 
 from app.database import get_db
 from app.models import Award, Recipient, Agency, FraudFlag, CachedStats
@@ -590,4 +590,141 @@ async def get_data_status(db: Session = Depends(get_db)):
         }
     }
     set_cached("data_status", result)
+    return result
+
+
+@router.get("/stats/geo/funding-by-county")
+async def get_funding_by_county(db: Session = Depends(get_db)):
+    """
+    Get total funding aggregated by Ohio county.
+    Uses city-to-county mapping since county isn't always populated.
+    """
+    # Check cache first
+    cached = get_cached("funding_by_county")
+    if cached:
+        return cached
+    
+    # Get funding by city (we have good city data)
+    city_results = db.execute(text("""
+        SELECT 
+            UPPER(r.city) as city,
+            COUNT(DISTINCT r.id) as recipient_count,
+            COUNT(a.id) as award_count,
+            COALESCE(SUM(a.amount), 0) as total_amount
+        FROM recipients r
+        LEFT JOIN awards a ON a.recipient_id = r.id
+        WHERE r.city IS NOT NULL AND r.city != '' AND r.state = 'OH'
+        GROUP BY UPPER(r.city)
+        ORDER BY total_amount DESC
+    """)).fetchall()
+    
+    # Major Ohio cities to county mapping
+    city_to_county = {
+        "COLUMBUS": "FRANKLIN", "CLEVELAND": "CUYAHOGA", "CINCINNATI": "HAMILTON",
+        "TOLEDO": "LUCAS", "AKRON": "SUMMIT", "DAYTON": "MONTGOMERY",
+        "PARMA": "CUYAHOGA", "CANTON": "STARK", "YOUNGSTOWN": "MAHONING",
+        "LORAIN": "LORAIN", "HAMILTON": "BUTLER", "SPRINGFIELD": "CLARK",
+        "KETTERING": "MONTGOMERY", "ELYRIA": "LORAIN", "LAKEWOOD": "CUYAHOGA",
+        "CUYAHOGA FALLS": "SUMMIT", "MIDDLETOWN": "BUTLER", "EUCLID": "CUYAHOGA",
+        "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
+        "BEAVERCREEK": "GREENE", "CLEVELAND HEIGHTS": "CUYAHOGA", "STRONGSVILLE": "CUYAHOGA",
+        "DUBLIN": "FRANKLIN", "FAIRFIELD": "BUTLER", "FINDLAY": "HANCOCK",
+        "WARREN": "TRUMBULL", "LANCASTER": "FAIRFIELD", "LIMA": "ALLEN",
+        "HUBER HEIGHTS": "MONTGOMERY", "WESTERVILLE": "FRANKLIN", "MARION": "MARION",
+        "GROVE CITY": "FRANKLIN", "REYNOLDSBURG": "FRANKLIN", "STOW": "SUMMIT",
+        "DELAWARE": "DELAWARE", "BRUNSWICK": "MEDINA", "UPPER ARLINGTON": "FRANKLIN",
+        "GAHANNA": "FRANKLIN", "WESTLAKE": "CUYAHOGA", "NORTH OLMSTED": "CUYAHOGA",
+        "FAIRBORN": "GREENE", "MASSILLON": "STARK", "MASON": "WARREN",
+        "NORTH RIDGEVILLE": "LORAIN", "BOWLING GREEN": "WOOD", "ZANESVILLE": "MUSKINGUM",
+        "RIVERSIDE": "MONTGOMERY", "TROTWOOD": "MONTGOMERY", "GARFIELD HEIGHTS": "CUYAHOGA",
+        "SHAKER HEIGHTS": "CUYAHOGA", "NORTH ROYALTON": "CUYAHOGA", "SOLON": "CUYAHOGA",
+        "GREEN": "SUMMIT", "BARBERTON": "SUMMIT", "WOOSTER": "WAYNE",
+        "ASHLAND": "ASHLAND", "XENIA": "GREENE", "MEDINA": "MEDINA",
+        "TROY": "MIAMI", "TIFFIN": "SENECA", "FREMONT": "SANDUSKY",
+        "ALLIANCE": "STARK", "SANDUSKY": "ERIE", "CHILLICOTHE": "ROSS",
+        "KENT": "PORTAGE", "SIDNEY": "SHELBY", "PIQUA": "MIAMI",
+        "OXFORD": "BUTLER", "ATHENS": "ATHENS", "PORTSMOUTH": "SCIOTO",
+        "OREGON": "LUCAS", "SYLVANIA": "LUCAS", "PERRYSBURG": "WOOD",
+        "MARYSVILLE": "UNION", "AVON": "LORAIN", "WADSWORTH": "MEDINA",
+        "AVON LAKE": "LORAIN", "HILLIARD": "FRANKLIN", "POWELL": "DELAWARE",
+        "PICKERINGTON": "FAIRFIELD", "HUDSON": "SUMMIT", "AURORA": "PORTAGE",
+        "WILLOUGHBY": "LAKE", "ASHTABULA": "ASHTABULA", "NORWOOD": "HAMILTON",
+        "CENTERVILLE": "MONTGOMERY", "MIAMISBURG": "MONTGOMERY", "DOVER": "TUSCARAWAS",
+        "NEW PHILADELPHIA": "TUSCARAWAS", "CAMBRIDGE": "GUERNSEY", "DEFIANCE": "DEFIANCE",
+        "CIRCLEVILLE": "PICKAWAY", "GREENVILLE": "DARKE", "CELINA": "MERCER",
+        "WASHINGTON COURT HOUSE": "FAYETTE", "BELLEFONTAINE": "LOGAN",
+        "MOUNT VERNON": "KNOX", "COSHOCTON": "COSHOCTON", "MARIETTA": "WASHINGTON",
+        "IRONTON": "LAWRENCE", "GALLIPOLIS": "GALLIA", "JACKSON": "JACKSON",
+        "LOGAN": "HOCKING", "MCARTHUR": "VINTON", "HILLSBORO": "HIGHLAND",
+        "GEORGETOWN": "BROWN", "WEST UNION": "ADAMS", "WAVERLY": "PIKE",
+        "BATAVIA": "CLERMONT", "LEBANON": "WARREN", "WILMINGTON": "CLINTON",
+        "URBANA": "CHAMPAIGN", "LONDON": "MADISON", "KENTON": "HARDIN",
+        "VAN WERT": "VAN WERT", "PAULDING": "PAULDING", "NAPOLEON": "HENRY",
+        "WAUSEON": "FULTON", "BRYAN": "WILLIAMS", "UPPER SANDUSKY": "WYANDOT",
+        "BUCYRUS": "CRAWFORD", "GALION": "CRAWFORD", "SHELBY": "RICHLAND",
+        "NORWALK": "HURON", "PORT CLINTON": "OTTAWA", "CHARDON": "GEAUGA",
+        "PAINESVILLE": "LAKE", "RAVENNA": "PORTAGE", "WARREN": "TRUMBULL",
+        "NILES": "TRUMBULL", "SALEM": "COLUMBIANA", "EAST LIVERPOOL": "COLUMBIANA",
+        "STEUBENVILLE": "JEFFERSON", "CARROLLTON": "CARROLL", "CADIZ": "HARRISON",
+        "LISBON": "COLUMBIANA", "WOODSFIELD": "MONROE", "CALDWELL": "NOBLE",
+        "ST CLAIRSVILLE": "BELMONT", "BARNESVILLE": "BELMONT",
+        "NEW LEXINGTON": "PERRY", "MCCONNELSVILLE": "MORGAN",
+        # Add county seats
+        "MILLERSBURG": "HOLMES", "LOUDONVILLE": "ASHLAND",
+    }
+    
+    # Aggregate by county
+    county_totals = {}
+    unmapped_cities = []
+    
+    for row in city_results:
+        city = row[0]
+        county = city_to_county.get(city)
+        
+        if county:
+            if county not in county_totals:
+                county_totals[county] = {
+                    "county": county,
+                    "recipient_count": 0,
+                    "award_count": 0,
+                    "total_amount": 0,
+                    "cities": []
+                }
+            county_totals[county]["recipient_count"] += row[1]
+            county_totals[county]["award_count"] += row[2]
+            county_totals[county]["total_amount"] += float(row[3])
+            if float(row[3]) > 0:
+                county_totals[county]["cities"].append({
+                    "city": city.title(),
+                    "amount": float(row[3])
+                })
+        else:
+            if float(row[3]) > 100000:  # Only track significant unmapped cities
+                unmapped_cities.append({
+                    "city": city,
+                    "amount": float(row[3])
+                })
+    
+    # Convert to sorted list
+    counties = sorted(
+        county_totals.values(),
+        key=lambda x: x["total_amount"],
+        reverse=True
+    )
+    
+    # Limit cities per county for response size
+    for county in counties:
+        county["cities"] = sorted(
+            county["cities"],
+            key=lambda x: x["amount"],
+            reverse=True
+        )[:5]
+    
+    result = {
+        "counties": counties,
+        "total_counties": len(counties),
+        "unmapped_cities": unmapped_cities[:10]  # Top unmapped for debugging
+    }
+    
+    set_cached("funding_by_county", result)  # Cache for 5 min (default)
     return result

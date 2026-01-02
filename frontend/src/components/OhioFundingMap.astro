@@ -1,0 +1,227 @@
+---
+// Ohio Funding Map Component - Choropleth style with bar chart
+---
+
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+    <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+      <span class="mr-2">📍</span>Federal Funding by County
+    </h3>
+    <div id="map-stats" class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+      <span>Loading...</span>
+    </div>
+  </div>
+  
+  <div class="flex flex-col lg:flex-row gap-6">
+    <!-- Bar Chart - Top Counties -->
+    <div class="flex-1">
+      <div id="county-bars" class="space-y-2">
+        <div class="flex items-center justify-center h-48">
+          <svg class="animate-spin h-8 w-8 text-primary-600" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Info Panel -->
+    <div class="lg:w-72 space-y-3">
+      <div id="county-details" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-center">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          Hover over a county to see details
+        </p>
+      </div>
+      
+      <!-- Quick Stats -->
+      <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+        <h4 class="font-semibold text-gray-900 dark:text-white mb-2 text-sm">Distribution</h4>
+        <div id="distribution-stats" class="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+          Loading...
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+(function() {
+  function formatCurrency(amount) {
+    if (amount >= 1e9) return `$${(amount / 1e9).toFixed(2)}B`;
+    if (amount >= 1e6) return `$${(amount / 1e6).toFixed(1)}M`;
+    if (amount >= 1e3) return `$${(amount / 1e3).toFixed(0)}K`;
+    return `$${amount.toFixed(0)}`;
+  }
+
+  function getBarColor(ratio) {
+    // Color gradient from blue to red based on ratio
+    if (ratio > 0.8) return '#dc2626'; // red-600
+    if (ratio > 0.6) return '#ea580c'; // orange-600
+    if (ratio > 0.4) return '#d97706'; // amber-600
+    if (ratio > 0.2) return '#0284c7'; // sky-600
+    return '#0ea5e9'; // sky-500
+  }
+
+  function titleCase(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  }
+
+  function showCountyDetails(county, data) {
+    const el = document.getElementById('county-details');
+    if (!data) {
+      el.innerHTML = `<p class="text-sm text-gray-500 dark:text-gray-400">Hover over a county to see details</p>`;
+      return;
+    }
+    
+    let citiesHtml = '';
+    if (data.cities && data.cities.length > 0) {
+      citiesHtml = `
+        <div class="pt-2 border-t border-gray-200 dark:border-gray-600 mt-2">
+          <div class="text-gray-500 dark:text-gray-400 text-xs mb-1">Top Cities:</div>
+          ${data.cities.slice(0, 3).map(c => `
+            <div class="flex justify-between text-xs">
+              <span class="text-gray-700 dark:text-gray-300">${c.city}</span>
+              <span class="text-green-600 dark:text-green-400">${formatCurrency(c.amount)}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    
+    el.innerHTML = `
+      <h4 class="font-semibold text-gray-900 dark:text-white mb-2 text-left">${titleCase(county)} County</h4>
+      <div class="space-y-1 text-sm text-left">
+        <div class="flex justify-between">
+          <span class="text-gray-600 dark:text-gray-400">Total Funding:</span>
+          <span class="font-bold text-green-600 dark:text-green-400">${formatCurrency(data.total_amount)}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-600 dark:text-gray-400">Recipients:</span>
+          <span class="text-gray-900 dark:text-white">${data.recipient_count.toLocaleString()}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-600 dark:text-gray-400">Awards:</span>
+          <span class="text-gray-900 dark:text-white">${data.award_count.toLocaleString()}</span>
+        </div>
+        ${citiesHtml}
+      </div>
+    `;
+  }
+
+  async function loadMap() {
+    const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+    
+    try {
+      const response = await fetch(`${apiBase}/api/stats/geo/funding-by-county`);
+      if (!response.ok) throw new Error('Failed to load');
+      const data = await response.json();
+      
+      if (!data.counties || data.counties.length === 0) {
+        document.getElementById('county-bars').innerHTML = `
+          <p class="text-gray-500 dark:text-gray-400 text-center py-12">
+            No geographic data available yet.
+          </p>
+        `;
+        return;
+      }
+
+      // Calculate totals
+      let totalFunding = 0;
+      let maxAmount = 0;
+      data.counties.forEach(c => {
+        totalFunding += c.total_amount;
+        if (c.total_amount > maxAmount) maxAmount = c.total_amount;
+      });
+
+      // Update stats header
+      document.getElementById('map-stats').innerHTML = `
+        <span>${data.total_counties} counties</span>
+        <span class="font-medium text-green-600 dark:text-green-400">${formatCurrency(totalFunding)} total</span>
+      `;
+
+      // Build horizontal bar chart - show top 15
+      const topCounties = data.counties.slice(0, 15);
+      const barsHtml = topCounties.map((county, idx) => {
+        const ratio = county.total_amount / maxAmount;
+        const widthPercent = Math.max(ratio * 100, 2); // minimum 2% width for visibility
+        const color = getBarColor(ratio);
+        
+        return `
+          <div class="county-bar flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded transition-colors"
+               data-county="${county.county}">
+            <div class="w-24 sm:w-32 text-xs text-gray-700 dark:text-gray-300 truncate">
+              <span class="text-gray-400 mr-1">${idx + 1}.</span>${titleCase(county.county)}
+            </div>
+            <div class="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden">
+              <div class="h-full rounded transition-all duration-300" 
+                   style="width: ${widthPercent}%; background-color: ${color}">
+              </div>
+            </div>
+            <div class="w-20 text-right text-xs font-semibold text-green-600 dark:text-green-400">
+              ${formatCurrency(county.total_amount)}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Add "others" summary if more than 15 counties
+      let othersHtml = '';
+      if (data.counties.length > 15) {
+        const othersCount = data.counties.length - 15;
+        const othersTotal = data.counties.slice(15).reduce((sum, c) => sum + c.total_amount, 0);
+        othersHtml = `
+          <div class="pt-2 mt-2 border-t border-gray-200 dark:border-gray-600">
+            <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span>+ ${othersCount} other counties</span>
+              <span class="font-medium">${formatCurrency(othersTotal)}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById('county-bars').innerHTML = barsHtml + othersHtml;
+
+      // Add hover listeners
+      const countyLookup = {};
+      data.counties.forEach(c => countyLookup[c.county] = c);
+      
+      document.querySelectorAll('.county-bar').forEach(el => {
+        const countyName = el.getAttribute('data-county');
+        el.addEventListener('mouseenter', () => {
+          showCountyDetails(countyName, countyLookup[countyName]);
+        });
+        el.addEventListener('mouseleave', () => {
+          showCountyDetails(null, null);
+        });
+      });
+
+      // Distribution stats
+      const top5Total = data.counties.slice(0, 5).reduce((sum, c) => sum + c.total_amount, 0);
+      const top10Total = data.counties.slice(0, 10).reduce((sum, c) => sum + c.total_amount, 0);
+      
+      document.getElementById('distribution-stats').innerHTML = `
+        <div class="flex justify-between">
+          <span>Top 5 counties:</span>
+          <span class="font-medium text-gray-900 dark:text-white">${((top5Total / totalFunding) * 100).toFixed(1)}%</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Top 10 counties:</span>
+          <span class="font-medium text-gray-900 dark:text-white">${((top10Total / totalFunding) * 100).toFixed(1)}%</span>
+        </div>
+        <div class="flex justify-between pt-1 mt-1 border-t border-gray-200 dark:border-gray-600">
+          <span>Avg per county:</span>
+          <span class="font-medium text-gray-900 dark:text-white">${formatCurrency(totalFunding / data.total_counties)}</span>
+        </div>
+      `;
+
+    } catch (err) {
+      console.error('Map load error:', err);
+      document.getElementById('county-bars').innerHTML = `
+        <p class="text-red-500 text-center py-12">Failed to load funding data</p>
+      `;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadMap);
+})();
+</script>
