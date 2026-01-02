@@ -168,26 +168,74 @@
   }
   
   /* Table text overrides - ensure no black text in dark mode */
-  table .text-gray-900 {
+  table .text-gray-900,
+  .data-table .text-gray-900,
+  .bg-white .text-gray-900,
+  .dark .bg-gray-800 .text-gray-900 {
     @apply dark:text-white;
   }
   
-  table .text-gray-700 {
+  table .text-gray-700,
+  .data-table .text-gray-700 {
     @apply dark:text-gray-300;
   }
   
-  table .text-gray-600 {
+  table .text-gray-600,
+  .data-table .text-gray-600 {
     @apply dark:text-gray-300;
   }
   
-  table .text-gray-500 {
+  table .text-gray-500,
+  .data-table .text-gray-500 {
     @apply dark:text-gray-400;
   }
   
   /* Font styles in tables */
-  table .font-medium {
+  table .font-medium,
+  .data-table .font-medium {
     @apply text-gray-800 dark:text-white;
   }
+  
+  /* Grid/card text in dark mode */
+  .dark .bg-gray-800 p,
+  .dark .bg-gray-800 span,
+  .dark .bg-gray-800 td,
+  .dark .bg-gray-800 th,
+  .dark .bg-gray-800 div {
+    color: inherit;
+  }
+}
+
+/* Force dark mode text colors - must be outside @layer for higher specificity */
+.dark .text-gray-900 {
+  --tw-text-opacity: 1;
+  color: rgb(255 255 255 / var(--tw-text-opacity)) !important;
+}
+
+.dark .text-gray-800 {
+  --tw-text-opacity: 1;
+  color: rgb(243 244 246 / var(--tw-text-opacity)) !important;
+}
+
+.dark .text-gray-700 {
+  --tw-text-opacity: 1;
+  color: rgb(229 231 235 / var(--tw-text-opacity)) !important;
+}
+
+.dark .text-gray-600 {
+  --tw-text-opacity: 1;
+  color: rgb(209 213 219 / var(--tw-text-opacity)) !important;
+}
+
+.dark table td,
+.dark table th {
+  color: rgb(209 213 219 / 1);
+}
+
+.dark table .font-medium,
+.dark table .font-semibold,
+.dark table .font-bold {
+  color: rgb(255 255 255 / 1) !important;
 }
 
 /* Mobile-specific improvements */
@@ -223,4 +271,51 @@
   .text-responsive-xl {
     @apply text-lg sm:text-xl lg:text-2xl;
   }
+}
+
+/* =============================================================================
+   DARK MODE TEXT FIX - High specificity overrides for table text
+   Must be at the END of the file to override Tailwind utilities
+   ============================================================================= */
+
+/* Force ALL text in dark mode tables to be light */
+html.dark table tbody tr td {
+  color: #d1d5db !important; /* gray-300 */
+}
+
+html.dark table tbody tr td div,
+html.dark table tbody tr td span,
+html.dark table tbody tr td p {
+  color: inherit !important;
+}
+
+/* Bold/medium text should be white */
+html.dark table tbody tr td .font-medium,
+html.dark table tbody tr td .font-semibold,
+html.dark table tbody tr td .font-bold,
+html.dark table tbody tr td div.font-medium {
+  color: #ffffff !important;
+}
+
+/* Keep green amounts green */
+html.dark table tbody tr td .text-green-600,
+html.dark table tbody tr td .text-green-400 {
+  color: #4ade80 !important;
+}
+
+/* Muted text */
+html.dark table tbody tr td .text-gray-500,
+html.dark table tbody tr td .text-gray-400,
+html.dark table tbody tr td .text-xs {
+  color: #9ca3af !important;
+}
+
+/* Apply to any element with dark bg */
+html.dark .bg-gray-800 .font-medium,
+html.dark .dark\:bg-gray-800 .font-medium {
+  color: #ffffff !important;
+}
+
+html.dark .bg-gray-800 .text-gray-900 {
+  color: #ffffff !important;
 }

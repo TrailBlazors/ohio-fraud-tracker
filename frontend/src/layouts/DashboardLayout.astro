@@ -37,6 +37,29 @@ function getSourceInfo(sourceKey: string) {
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <title>{title} | Ohio Fraud Tracker</title>
+  <style>
+    /* Force dark mode table text colors - aggressive override */
+    html.dark table tbody td {
+      color: #d1d5db !important;
+    }
+    html.dark table tbody td * {
+      color: inherit !important;
+    }
+    html.dark table tbody td [class*="font-medium"],
+    html.dark table tbody td [class*="font-semibold"],
+    html.dark table tbody td [class*="font-bold"],
+    html.dark table tbody td [class*="text-gray-900"] {
+      color: #ffffff !important;
+    }
+    html.dark table tbody td [class*="text-green"] {
+      color: #4ade80 !important;
+    }
+    html.dark table tbody td [class*="text-gray-5"],
+    html.dark table tbody td [class*="text-gray-4"],
+    html.dark table tbody td [class*="text-gray-6"] {
+      color: #9ca3af !important;
+    }
+  </style>
   <script is:inline>
     // Default to dark mode unless explicitly set to light
     if (localStorage.getItem('color-theme') === 'light') {

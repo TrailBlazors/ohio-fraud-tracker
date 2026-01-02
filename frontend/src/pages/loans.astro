@@ -87,7 +87,7 @@ const buildUrl = (newPage: number) => {
         </thead>
         <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
           {loans.items.map((loan) => (
-            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <tr class="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
               <td class="px-4 py-3">
                 <div class="font-medium text-gray-900 dark:text-white truncate">{loan.recipient_name}</div>
                 {loan.recipient_city && (
