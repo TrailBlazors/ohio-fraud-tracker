@@ -293,6 +293,56 @@ class CachedStats(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ExcludedEntity(Base):
+    """
+    OIG LEIE (List of Excluded Individuals/Entities)
+    Individuals and entities excluded from federal healthcare programs.
+    """
+    __tablename__ = "excluded_entities"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # Name fields
+    last_name = Column(String(100), nullable=True, index=True)
+    first_name = Column(String(100), nullable=True)
+    middle_name = Column(String(100), nullable=True)
+    business_name = Column(String(255), nullable=True, index=True)
+    
+    # Normalized for matching
+    name_normalized = Column(String(255), index=True)  # Combined/normalized name
+    
+    # Type
+    general_type = Column(String(20), nullable=True)  # INDIV or ENTITY
+    specialty = Column(String(255), nullable=True)  # Medical specialty
+    
+    # Identifiers
+    upin = Column(String(20), nullable=True)  # Unique Physician ID
+    npi = Column(String(20), nullable=True, index=True)  # National Provider ID
+    dob = Column(Date, nullable=True)  # Date of birth (individuals)
+    
+    # Address
+    address = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True, index=True)
+    state = Column(String(2), nullable=True, index=True)
+    zip_code = Column(String(10), nullable=True)
+    
+    # Exclusion info
+    exclusion_type = Column(String(20), nullable=True)  # Exclusion authority code
+    exclusion_date = Column(Date, nullable=True, index=True)
+    reinstatement_date = Column(Date, nullable=True)
+    waiver_date = Column(Date, nullable=True)
+    waiver_state = Column(String(2), nullable=True)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        Index("ix_excluded_name_state", "name_normalized", "state"),
+        Index("ix_excluded_business", "business_name"),
+    )
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
