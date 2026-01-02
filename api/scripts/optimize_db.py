@@ -69,7 +69,7 @@ def check_table_sizes():
     """Show table sizes"""
     print("\nTable sizes:")
     
-    tables = ["awards", "recipients", "agencies", "fraud_flags", "cached_stats"]
+    tables = ["awards", "recipients", "agencies", "fraud_flags", "cached_stats", "excluded_entities"]
     
     with engine.connect() as conn:
         for table in tables:
@@ -196,6 +196,43 @@ def refresh_cached_stats():
             print(f"  ✓ recipients_with_naics: {recipients_with_naics:,} ({100*recipients_with_naics/total_recipients:.1f}%)" if total_recipients > 0 else "  ✓ recipients_with_naics: 0")
             print(f"  ✓ recipients_with_business_type: {recipients_with_business_type:,} ({100*recipients_with_business_type/total_recipients:.1f}%)" if total_recipients > 0 else "  ✓ recipients_with_business_type: 0")
             print(f"  ✓ recipients_by_status: {len(recipients_by_status)} statuses")
+            
+            # LEIE exclusion stats
+            print("  Computing LEIE exclusion stats...")
+            try:
+                total_excluded = conn.execute(text(
+                    "SELECT COUNT(*) FROM excluded_entities"
+                )).scalar() or 0
+                ohio_excluded = conn.execute(text(
+                    "SELECT COUNT(*) FROM excluded_entities WHERE state = 'OH'"
+                )).scalar() or 0
+                excluded_flags = conn.execute(text(
+                    "SELECT COUNT(*) FROM fraud_flags WHERE flag_type = 'excluded_provider'"
+                )).scalar() or 0
+                
+                leie_stats = [
+                    ("leie_total", total_excluded, None),
+                    ("leie_ohio", ohio_excluded, None),
+                    ("leie_flags", excluded_flags, None),
+                ]
+                
+                for key, value, json_val in leie_stats:
+                    conn.execute(text("""
+                        INSERT INTO cached_stats (stat_key, stat_value, stat_json, updated_at)
+                        VALUES (:key, :value, :json, :now)
+                        ON CONFLICT(stat_key) DO UPDATE SET 
+                            stat_value = :value, 
+                            stat_json = :json,
+                            updated_at = :now
+                    """), {"key": key, "value": value, "json": json_val, "now": datetime.utcnow()})
+                
+                conn.commit()
+                
+                print(f"  ✓ leie_total: {total_excluded:,}")
+                print(f"  ✓ leie_ohio: {ohio_excluded:,}")
+                print(f"  ✓ leie_flags: {excluded_flags:,}")
+            except Exception as e:
+                print(f"  ⚠ LEIE stats skipped (table may not exist): {e}")
             
     finally:
         db.close()
