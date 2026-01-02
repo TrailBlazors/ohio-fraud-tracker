@@ -1,5 +1,6 @@
 ---
 import DashboardLayout from '../layouts/DashboardLayout.astro';
+import OhioFundingMap from '../components/OhioFundingMap.astro';
 import { getQuickStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate, getSourceName } from '../lib/api';
 
 let stats;
@@ -206,6 +207,11 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
       </div>
     </div>
   )}
+
+  <!-- Ohio Funding Map - Full Width -->
+  <div class="mb-4 sm:mb-6">
+    <OhioFundingMap />
+  </div>
 
   <!-- Charts Row -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 sm:mb-6">
