@@ -136,3 +136,16 @@ const buildUrl = (newPage: number) => {
     </div>
   )}
 </DashboardLayout>
+
+<style>
+  /* Force dark mode text colors for this page */
+  :global(html.dark) table tbody td {
+    color: #d1d5db !important;
+  }
+  :global(html.dark) table tbody td .font-medium {
+    color: #ffffff !important;
+  }
+  :global(html.dark) table tbody td .text-gray-500 {
+    color: #9ca3af !important;
+  }
+</style>

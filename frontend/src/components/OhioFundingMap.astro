@@ -222,6 +222,13 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', loadMap);
+  // Defer loading - wait for main content to render first
+  if ('requestIdleCallback' in window) {
+    // Modern browsers: load when browser is idle
+    requestIdleCallback(() => loadMap(), { timeout: 2000 });
+  } else {
+    // Fallback: load after a short delay
+    setTimeout(loadMap, 500);
+  }
 })();
 </script>

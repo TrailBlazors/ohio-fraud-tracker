@@ -74,7 +74,7 @@ const buildUrl = (newPage: number) => {
   <!-- Loans Table -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
     <div class="overflow-x-auto">
-      <table class="w-full text-sm text-left">
+      <table class="w-full text-sm text-left text-gray-900 dark:text-gray-300">
         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
           <tr class="text-gray-600 dark:text-gray-300">
             <th class="px-4 py-3 w-[15%]">Recipient</th>
@@ -89,7 +89,7 @@ const buildUrl = (newPage: number) => {
           {loans.items.map((loan) => (
             <tr class="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-900 dark:text-white truncate">{loan.recipient_name}</div>
+                <div class="font-medium truncate">{loan.recipient_name}</div>
                 {loan.recipient_city && (
                   <div class="text-xs text-gray-500 dark:text-gray-400">{loan.recipient_city}</div>
                 )}
@@ -113,14 +113,14 @@ const buildUrl = (newPage: number) => {
                 </span>
               </td>
               <td class="px-4 py-3">
-                <div class="text-gray-600 dark:text-gray-300 truncate max-w-xs" title={loan.description || ''}>
+                <div class="truncate max-w-xs" title={loan.description || ''}>
                   {loan.description?.substring(0, 50) || '—'}{loan.description && loan.description.length > 50 ? '...' : ''}
                 </div>
               </td>
               <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
                 {formatCurrency(loan.amount)}
               </td>
-              <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+              <td class="px-4 py-3 text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">
                 {formatDate(loan.award_date)}
               </td>
             </tr>
@@ -163,3 +163,16 @@ const buildUrl = (newPage: number) => {
     </div>
   )}
 </DashboardLayout>
+
+<style>
+  /* Force dark mode text colors for this page */
+  :global(html.dark) table tbody td {
+    color: #d1d5db !important;
+  }
+  :global(html.dark) table tbody td .font-medium {
+    color: #ffffff !important;
+  }
+  :global(html.dark) table tbody td .text-gray-500 {
+    color: #9ca3af !important;
+  }
+</style>
