@@ -38,11 +38,11 @@ function getSourceInfo(sourceKey: string) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <title>{title} | Ohio Fraud Tracker</title>
   <script is:inline>
-    // Check theme preference on page load (before rendering)
-    if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
-    } else {
+    // Default to dark mode unless explicitly set to light
+    if (localStorage.getItem('color-theme') === 'light') {
       document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
     }
   </script>
   
@@ -309,18 +309,49 @@ function getSourceInfo(sourceKey: string) {
   </aside>
 
   <!-- Main content -->
-  <div class="p-4 sm:ml-64">
-    <div class="p-4 mt-14">
+  <div class="p-3 sm:p-4 sm:ml-64">
+    <div class="p-2 sm:p-4 mt-14">
       <slot />
       
       <!-- Footer -->
-      <footer class="mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
+      <footer class="mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 text-sm text-gray-500 dark:text-gray-400">
+          <!-- About -->
           <div>
-            <p>Ohio Fraud Tracker — A transparency tool for Ohio taxpayers</p>
-            <p class="text-xs mt-1">Data sourced from USAspending.gov, SBA, Ohio Checkbook, and Ohio Secretary of State</p>
+            <p class="font-medium text-gray-700 dark:text-gray-300">Ohio Fraud Tracker</p>
+            <p class="text-xs mt-1">A transparency tool for Ohio taxpayers</p>
+            <p class="text-xs mt-1">Data from USAspending.gov, SBA, Ohio Checkbook</p>
           </div>
-          <div class="flex items-center gap-4">
+          
+          <!-- Newsletter Signup -->
+          <div>
+            <p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Stay Updated</p>
+            <form
+              action="https://buttondown.com/api/emails/embed-subscribe/octobernorth"
+              method="post"
+              target="popupwindow"
+              onsubmit="window.open('https://buttondown.com/octobernorth', 'popupwindow')"
+              class="flex gap-2"
+            >
+              <input
+                type="email"
+                name="email"
+                placeholder="your@email.com"
+                required
+                class="flex-1 px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 dark:text-white"
+              />
+              <button
+                type="submit"
+                class="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+              >
+                Subscribe
+              </button>
+            </form>
+            <p class="text-xs mt-1 text-gray-400">Get notified about new features & data updates</p>
+          </div>
+          
+          <!-- Links -->
+          <div class="flex flex-wrap items-center gap-4 md:justify-end">
             <a href="mailto:support@ohiofraudtracker.org" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
