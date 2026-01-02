@@ -19,23 +19,29 @@ from app.schemas import (
 router = APIRouter()
 
 
-def build_award_query(db: Session, params: AwardSearchParams):
+def build_award_query(db: Session, params: AwardSearchParams, fast_search: bool = False):
     """Build filtered query based on search params"""
     
     query = db.query(Award, Recipient, Agency)\
         .join(Recipient, Award.recipient_id == Recipient.id)\
         .outerjoin(Agency, Award.agency_id == Agency.id)
     
-    # Text search
+    # Text search - use LIKE without LOWER() for index usage
+    # SQLite LIKE is case-insensitive by default for ASCII
     if params.q:
-        search_term = f"%{params.q.lower()}%"
-        query = query.filter(
-            or_(
-                func.lower(Recipient.name).like(search_term),
-                func.lower(Award.description).like(search_term),
-                func.lower(Recipient.city).like(search_term)
+        search_term = f"%{params.q}%"
+        if fast_search:
+            # Fast: only search recipient name
+            query = query.filter(Recipient.name.ilike(search_term))
+        else:
+            # Full: search name, description, city
+            query = query.filter(
+                or_(
+                    Recipient.name.ilike(search_term),
+                    Award.description.ilike(search_term),
+                    Recipient.city.ilike(search_term)
+                )
             )
-        )
     
     # Filters
     if params.recipient_id:
@@ -63,14 +69,13 @@ def build_award_query(db: Session, params: AwardSearchParams):
         query = query.filter(Award.award_date <= params.end_date)
     
     if params.city:
-        query = query.filter(func.lower(Recipient.city) == params.city.lower())
+        query = query.filter(Recipient.city.ilike(params.city))
     
     if params.cfda_number:
         query = query.filter(Award.cfda_number == params.cfda_number)
     
-    # NAICS code filter (business type search)
+    # NAICS code filter
     if hasattr(params, 'naics_code') and params.naics_code:
-        # Support partial match (e.g., "484" matches all trucking)
         naics_term = f"{params.naics_code}%"
         query = query.filter(Recipient.naics_code.like(naics_term))
     
@@ -309,6 +314,53 @@ async def list_grants(
     )
 
 
+@router.get("/search/fast")
+async def fast_search(
+    q: str = Query(..., min_length=2, description="Search term"),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Fast search endpoint - searches recipient names only, skips COUNT.
+    Optimized for the search page initial results.
+    """
+    search_term = f"%{q}%"
+    
+    # Fast query: only recipient name, no COUNT, limited results
+    # Use ilike for case-insensitive without LOWER() function
+    query = db.query(Award, Recipient, Agency)\
+        .join(Recipient, Award.recipient_id == Recipient.id)\
+        .outerjoin(Agency, Award.agency_id == Agency.id)\
+        .filter(Recipient.name.ilike(search_term))\
+        .order_by(desc(Award.amount))\
+        .limit(limit)
+    
+    results = query.all()
+    
+    items = [
+        {
+            "id": award.id,
+            "source": award.source,
+            "award_type": award.award_type,
+            "amount": award.amount,
+            "description": award.description,
+            "recipient_name": recipient.name,
+            "recipient_city": recipient.city,
+            "agency_code": agency.code if agency else None,
+            "agency_name": agency.name if agency else None,
+            "award_date": award.award_date.isoformat() if award.award_date else None,
+            "cfda_number": award.cfda_number
+        }
+        for award, recipient, agency in results
+    ]
+    
+    return {
+        "items": items,
+        "total_count": len(items),
+        "has_more": len(items) == limit
+    }
+
+
 @router.get("/loans", response_model=AwardListResponse)
 async def list_loans(
     q: Optional[str] = Query(None),
@@ -319,40 +371,52 @@ async def list_loans(
     page_size: int = Query(25, ge=1, le=100),
     sort_by: str = Query("amount"),
     sort_order: str = Query("desc"),
+    skip_count: bool = Query(False, description="Skip total count for faster response"),
     db: Session = Depends(get_db)
 ):
     """
     List loans only (PPP, EIDL, federal loans)
     """
-    # Include both federal loans and SBA loans
-    params = AwardSearchParams(
-        q=q,
-        city=city,
-        min_amount=min_amount,
-        max_amount=max_amount,
-        page=page,
-        page_size=page_size,
-        sort_by=sort_by,
-        sort_order=sort_order
-    )
-    
-    query = build_award_query(db, params)
-    
-    # Filter to loan types
-    loan_types = ["direct_loan", "guaranteed_loan", "insurance"]
+    # Filter to loan types/sources
+    loan_types = ["direct_loan", "guaranteed_loan", "insurance", "loan"]
     loan_sources = ["sba_ppp", "sba_eidl"]
     
-    query = query.filter(
-        or_(
-            Award.award_type.in_(loan_types),
-            Award.source.in_(loan_sources)
+    # Build optimized query - filter loans FIRST, then search
+    query = db.query(Award, Recipient, Agency)\
+        .join(Recipient, Award.recipient_id == Recipient.id)\
+        .outerjoin(Agency, Award.agency_id == Agency.id)\
+        .filter(
+            or_(
+                Award.award_type.in_(loan_types),
+                Award.source.in_(loan_sources)
+            )
         )
-    )
     
-    total_count = query.count()
+    # Text search - only on recipient name for speed
+    if q:
+        search_term = f"%{q}%"
+        query = query.filter(Recipient.name.ilike(search_term))
+    
+    # City filter
+    if city:
+        query = query.filter(Recipient.city.ilike(f"%{city}%"))
+    
+    # Amount filters
+    if min_amount is not None:
+        query = query.filter(Award.amount >= min_amount)
+    if max_amount is not None:
+        query = query.filter(Award.amount <= max_amount)
+    
+    # Get total count - skip if requested for speed
+    if skip_count:
+        total_count = page * page_size + page_size
+    else:
+        total_count = query.count()
+    
+    # Sort and paginate
     query = apply_sorting(query, sort_by, sort_order)
-    offset = (params.page - 1) * params.page_size
-    results = query.offset(offset).limit(params.page_size).all()
+    offset = (page - 1) * page_size
+    results = query.offset(offset).limit(page_size).all()
     
     items = [
         AwardListItem(
@@ -371,14 +435,14 @@ async def list_loans(
         for award, recipient, agency in results
     ]
     
-    total_pages = (total_count + params.page_size - 1) // params.page_size
+    total_pages = (total_count + page_size - 1) // page_size
     
     return AwardListResponse(
         items=items,
-        page=params.page,
-        page_size=params.page_size,
+        page=page,
+        page_size=page_size,
         total_count=total_count,
         total_pages=total_pages,
-        has_next=params.page < total_pages,
-        has_prev=params.page > 1
+        has_next=page < total_pages,
+        has_prev=page > 1
     )
