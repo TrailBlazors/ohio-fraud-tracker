@@ -348,28 +348,33 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
 @router.get("/stats/agencies")
 async def get_agency_stats(db: Session = Depends(get_db)):
     """
-    Get all agencies with award counts
+    Get all agencies - fast version for dropdowns.
+    Just returns code/name, no expensive award counts.
     """
+    # Check memory cache first
+    cached = get_cached("agencies_list")
+    if cached:
+        return cached
+    
+    # Fast query - no JOINs, no aggregation
     query = db.query(
         Agency.id,
         Agency.code,
-        Agency.name,
-        func.count(Award.id).label("total_awards"),
-        func.sum(Award.amount).label("total_amount")
-    ).outerjoin(Award, Award.agency_id == Agency.id)\
-     .group_by(Agency.id)\
-     .order_by(desc("total_amount")).all()
+        Agency.name
+    ).order_by(Agency.code).all()
     
-    return [
+    result = [
         AgencySummary(
             id=row.id,
             code=row.code,
             name=row.name,
-            total_awards=row.total_awards or 0,
-            total_amount=float(row.total_amount or 0)
+            total_awards=0,
+            total_amount=0.0
         )
         for row in query
     ]
+    set_cached("agencies_list", result)
+    return result
 
 
 @router.get("/stats/by-year")
@@ -473,112 +478,65 @@ async def get_data_coverage(db: Session = Depends(get_db)):
 async def get_data_status(db: Session = Depends(get_db)):
     """
     Get comprehensive data status for the Data Status page.
-    Shows all sources, record counts, date ranges, and import history.
+    Uses cached stats for speed - no expensive GROUP BY queries.
     """
-    # Check cache first
+    import json
+    
+    # Check memory cache first (5 min TTL)
     cached = get_cached("data_status")
     if cached:
         return cached
     
-    from app.models import DataImport, NaicsCode
+    # Try to load from database cache
+    cache_row = db.query(CachedStats).filter(CachedStats.stat_key == "data_status").first()
+    if cache_row and cache_row.stat_json:
+        result = json.loads(cache_row.stat_json)
+        set_cached("data_status", result)
+        return result
     
-    # Source metadata (descriptions and URLs)
+    # Fallback: Build response from other cached stats (no GROUP BY)
     SOURCE_INFO = {
         "usaspending": {
             "name": "USAspending.gov",
             "description": "Federal grants, loans, and contracts",
-            "url": "https://usaspending.gov",
-            "types": ["grants", "loans", "contracts"]
+            "url": "https://usaspending.gov"
         },
         "sba_ppp": {
             "name": "SBA PPP Loans",
             "description": "Paycheck Protection Program loans (COVID-19)",
-            "url": "https://data.sba.gov/dataset/ppp-foia",
-            "types": ["loans"]
-        },
-        "sba_eidl": {
-            "name": "SBA EIDL Loans",
-            "description": "Economic Injury Disaster Loans",
-            "url": "https://data.sba.gov",
-            "types": ["loans"]
+            "url": "https://data.sba.gov/dataset/ppp-foia"
         },
         "ohio_checkbook": {
             "name": "Ohio Checkbook",
             "description": "Ohio state spending data",
-            "url": "https://checkbook.ohio.gov",
-            "types": ["state_spending"]
-        },
-        "ohio_sos": {
-            "name": "Ohio Secretary of State",
-            "description": "Business registration and status",
-            "url": "https://www.ohiosos.gov/businesses/",
-            "types": ["business_registry"]
+            "url": "https://checkbook.ohio.gov"
         }
     }
     
-    # Get stats for each source
-    sources = []
-    source_list = db.query(Award.source).distinct().all()
-    active_sources = {s[0] for s in source_list}
+    # Try to get source stats from awards_by_source cache
+    source_cache = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_source").first()
+    source_data = {}
+    if source_cache and source_cache.stat_json:
+        source_data = json.loads(source_cache.stat_json)
     
-    for source_key, info in SOURCE_INFO.items():
-        if source_key in active_sources:
-            # Get detailed stats for this source
-            stats = db.query(
-                func.count(Award.id).label("count"),
-                func.sum(Award.amount).label("total"),
-                func.min(Award.award_date).label("min_date"),
-                func.max(Award.award_date).label("max_date"),
-                func.min(Award.created_at).label("first_import"),
-                func.max(Award.created_at).label("last_import")
-            ).filter(Award.source == source_key).first()
-            
-            # Get year breakdown
-            year_breakdown = db.query(
-                func.strftime("%Y", Award.award_date).label("year"),
-                func.count(Award.id).label("count"),
-                func.sum(Award.amount).label("total")
-            ).filter(
-                Award.source == source_key,
-                Award.award_date.isnot(None)
-            ).group_by("year").order_by("year").all()
-            
-            # Get award type breakdown for this source
-            type_breakdown = db.query(
-                Award.award_type,
-                func.count(Award.id).label("count"),
-                func.sum(Award.amount).label("total")
-            ).filter(Award.source == source_key).group_by(Award.award_type).all()
-            
+    sources = []
+    for key, info in SOURCE_INFO.items():
+        if key in source_data:
             sources.append({
-                "key": source_key,
+                "key": key,
                 "name": info["name"],
                 "description": info["description"],
                 "url": info["url"],
                 "status": "active",
-                "record_count": stats.count or 0,
-                "total_amount": float(stats.total or 0),
-                "date_range": {
-                    "min": stats.min_date.isoformat() if stats.min_date else None,
-                    "max": stats.max_date.isoformat() if stats.max_date else None
-                },
-                "import_info": {
-                    "first_import": stats.first_import.isoformat() if stats.first_import else None,
-                    "last_import": stats.last_import.isoformat() if stats.last_import else None
-                },
-                "by_year": [
-                    {"year": row.year, "count": row.count, "total": float(row.total or 0)}
-                    for row in year_breakdown
-                ],
-                "by_type": [
-                    {"type": row.award_type, "count": row.count, "total": float(row.total or 0)}
-                    for row in type_breakdown
-                ]
+                "record_count": source_data[key].get("count", 0),
+                "total_amount": float(source_data[key].get("total", 0)),
+                "date_range": None,  # Skip - requires expensive query
+                "by_year": [],
+                "by_type": []
             })
         else:
-            # Source not yet imported
             sources.append({
-                "key": source_key,
+                "key": key,
                 "name": info["name"],
                 "description": info["description"],
                 "url": info["url"],
@@ -586,52 +544,36 @@ async def get_data_status(db: Session = Depends(get_db)):
                 "record_count": 0,
                 "total_amount": 0,
                 "date_range": None,
-                "import_info": None,
                 "by_year": [],
                 "by_type": []
             })
     
-    # Get recipient stats
-    recipient_stats = db.query(
-        func.count(Recipient.id).label("total"),
-        func.count(Recipient.naics_code).label("with_naics"),
-        func.count(Recipient.business_type).label("with_business_type")
-    ).first()
+    # Get totals from cache
+    totals_cache = db.query(CachedStats).filter(
+        CachedStats.stat_key.in_(["total_awards", "total_amount", "total_recipients"])
+    ).all()
+    totals_dict = {r.stat_key: r.stat_value for r in totals_cache}
     
-    # Count recipients by status
-    status_breakdown = db.query(
-        Recipient.business_status,
-        func.count(Recipient.id).label("count")
-    ).group_by(Recipient.business_status).all()
+    # Fast agency count (small table)
+    agency_count = db.query(func.count(Agency.id)).scalar() or 0
     
-    # Get NAICS code count
-    naics_count = 0
-    try:
-        naics_count = db.query(func.count(NaicsCode.code)).scalar() or 0
-    except:
-        pass
-    
-    # Database totals
     totals = {
-        "total_awards": db.query(func.count(Award.id)).scalar() or 0,
-        "total_amount": float(db.query(func.sum(Award.amount)).scalar() or 0),
-        "total_recipients": recipient_stats.total or 0,
-        "recipients_with_naics": recipient_stats.with_naics or 0,
-        "total_agencies": db.query(func.count(Agency.id)).scalar() or 0,
-        "naics_codes_loaded": naics_count
+        "total_awards": int(totals_dict.get("total_awards", 0)),
+        "total_amount": float(totals_dict.get("total_amount", 0)),
+        "total_recipients": int(totals_dict.get("total_recipients", 0)),
+        "total_agencies": agency_count,
+        "recipients_with_naics": 0,  # Skip expensive query
+        "naics_codes_loaded": 0
     }
     
     result = {
         "sources": sources,
         "totals": totals,
         "recipients": {
-            "total": recipient_stats.total or 0,
-            "with_naics": recipient_stats.with_naics or 0,
-            "with_business_type": recipient_stats.with_business_type or 0,
-            "by_status": [
-                {"status": row.business_status, "count": row.count}
-                for row in status_breakdown
-            ]
+            "total": totals["total_recipients"],
+            "with_naics": 0,
+            "with_business_type": 0,
+            "by_status": []
         }
     }
     set_cached("data_status", result)
