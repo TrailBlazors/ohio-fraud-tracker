@@ -95,10 +95,12 @@ const buildUrl = (newPage: number) => {
               {recipient.city || 'Ohio'}, {recipient.state}
             </p>
           </div>
-          <span class={`chip ${getStatusChipClass(recipient.business_status)}`}>
-            <span>{getStatusIcon(recipient.business_status)}</span>
-            {recipient.business_status}
-          </span>
+          {recipient.business_status && recipient.business_status !== 'unknown' && (
+            <span class={`chip ${getStatusChipClass(recipient.business_status)}`}>
+              <span>{getStatusIcon(recipient.business_status)}</span>
+              {recipient.business_status}
+            </span>
+          )}
         </div>
         
         <div class="mt-4 text-sm text-primary-600 dark:text-primary-400 flex items-center">

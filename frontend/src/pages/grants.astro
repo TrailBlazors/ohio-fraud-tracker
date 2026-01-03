@@ -162,7 +162,11 @@ function getSourceChipClass(src: string): string {
   <!-- Results count -->
   <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
     <p class="text-sm text-gray-500 dark:text-gray-400">
-      Showing {((page - 1) * 25) + 1} - {Math.min(page * 25, awards.total_count)} of {awards.total_count.toLocaleString()} results
+      {awards.items.length > 0 ? (
+        awards.total_count > awards.items.length + ((page - 1) * 25)
+          ? `Showing ${((page - 1) * 25) + 1} - ${Math.min(page * 25, awards.total_count)} of ${awards.total_count.toLocaleString()} results`
+          : `Showing ${awards.items.length}${awards.has_next ? '+' : ''} results`
+      ) : 'No results'}
     </p>
     <div class="flex items-center gap-2">
       <span class="text-sm text-gray-500 dark:text-gray-400">Sort by:</span>
@@ -243,7 +247,7 @@ function getSourceChipClass(src: string): string {
   </div>
 
   <!-- Pagination -->
-  {awards.total_pages > 1 && (
+  {(awards.has_next || awards.has_prev) && (
     <div class="flex justify-center mt-6">
       <nav class="inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
         <a href={awards.has_prev ? buildUrl(page - 1) : '#'} 
@@ -252,7 +256,7 @@ function getSourceChipClass(src: string): string {
         </a>
         
         <span class="relative inline-flex items-center px-4 py-2 text-sm font-medium bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
-          Page {page} of {awards.total_pages}
+          Page {page}
         </span>
         
         <a href={awards.has_next ? buildUrl(page + 1) : '#'}

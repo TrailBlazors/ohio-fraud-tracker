@@ -1,5 +1,8 @@
 # Dependencies
 venv/
+venv313/
+.venv/
+api/.venv/
 __pycache__/
 *.py[cod]
 *$py.class
@@ -58,6 +61,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Node (for Astro frontend later)
+# Node (for Astro frontend)
 node_modules/
 .astro/
+frontend/.vercel/
+frontend/dist/
+.vercel/

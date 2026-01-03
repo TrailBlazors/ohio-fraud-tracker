@@ -67,7 +67,9 @@ const buildUrl = (newPage: number) => {
   <!-- Results -->
   <div class="flex justify-between items-center mb-4">
     <p class="text-sm text-gray-500 dark:text-gray-400">
-      {loans.total_count.toLocaleString()} loans found
+      {loans.items.length > 0 
+        ? `Showing ${loans.items.length}${loans.has_next ? '+' : ''} loans`
+        : 'No loans found'}
     </p>
   </div>
 
@@ -145,7 +147,7 @@ const buildUrl = (newPage: number) => {
   </div>
 
   <!-- Pagination -->
-  {loans.total_pages > 1 && (
+  {(loans.has_next || loans.has_prev) && (
     <div class="flex justify-center mt-6">
       <nav class="inline-flex rounded-md shadow-sm -space-x-px">
         <a href={loans.has_prev ? buildUrl(page - 1) : '#'}
@@ -153,7 +155,7 @@ const buildUrl = (newPage: number) => {
           Previous
         </a>
         <span class="relative inline-flex items-center px-4 py-2 text-sm font-medium bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
-          Page {page} of {loans.total_pages}
+          Page {page}
         </span>
         <a href={loans.has_next ? buildUrl(page + 1) : '#'}
           class={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg border ${loans.has_next ? 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-300 dark:border-gray-600' : 'bg-gray-100 dark:bg-gray-900 text-gray-400 cursor-not-allowed border-gray-200 dark:border-gray-700'}`}>

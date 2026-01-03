@@ -164,32 +164,20 @@ async def list_awards(
     # Build query
     query = build_award_query(db, params)
     
-    # Get total count - use cached value for simple queries
-    if skip_count:
-        # Estimate: assume there's more data
-        total_count = page * page_size + page_size
+    # Get total count - ALWAYS skip count for filtered queries (too slow on remote DB)
+    if skip_count or has_filters:
+        # For filtered queries, estimate based on page
+        # We'll show "X+ results" in UI
+        total_count = -1  # Signal to UI that count is unknown
     elif not has_filters:
         # Use cached total for unfiltered query
         cached = db.query(CachedStats).filter(CachedStats.stat_key == "total_awards").first()
         if cached:
             total_count = int(cached.stat_value)
         else:
-            total_count = query.count()
-    elif source and not any([q, recipient_id, agency_code, award_type, min_amount, max_amount, start_date, end_date, city, cfda_number]):
-        # Only source filter - use cached source count
-        import json
-        cached = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_source").first()
-        if cached and cached.stat_json:
-            source_data = json.loads(cached.stat_json)
-            if source in source_data:
-                total_count = source_data[source]["count"]
-            else:
-                total_count = query.count()
-        else:
-            total_count = query.count()
+            total_count = -1
     else:
-        # Filtered query - need actual count
-        total_count = query.count()
+        total_count = -1
     
     # Apply sorting and pagination
     query = apply_sorting(query, sort_by, sort_order)
@@ -214,16 +202,20 @@ async def list_awards(
         for award, recipient, agency in results
     ]
     
-    total_pages = (total_count + page_size - 1) // page_size
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+    
+    # Check if there's more data by seeing if we got a full page
+    has_next = len(items) == page_size
+    has_prev = page > 1
     
     return AwardListResponse(
         items=items,
         page=page,
         page_size=page_size,
-        total_count=total_count,
-        total_pages=total_pages,
-        has_next=page < total_pages,
-        has_prev=page > 1
+        total_count=total_count if total_count > 0 else len(items) + ((page - 1) * page_size),
+        total_pages=total_pages if total_pages > 0 else page + (1 if has_next else 0),
+        has_next=has_next,
+        has_prev=has_prev
     )
 
 
@@ -407,11 +399,9 @@ async def list_loans(
     if max_amount is not None:
         query = query.filter(Award.amount <= max_amount)
     
-    # Get total count - skip if requested for speed
-    if skip_count:
-        total_count = page * page_size + page_size
-    else:
-        total_count = query.count()
+    # Get total count - skip for speed (count is slow on remote DB)
+    # Just check if we have a full page to determine has_next
+    total_count = -1
     
     # Sort and paginate
     query = apply_sorting(query, sort_by, sort_order)
@@ -435,14 +425,18 @@ async def list_loans(
         for award, recipient, agency in results
     ]
     
-    total_pages = (total_count + page_size - 1) // page_size
+    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 0
+    
+    # Check if there's more data
+    has_next = len(items) == page_size
+    has_prev = page > 1
     
     return AwardListResponse(
         items=items,
         page=page,
         page_size=page_size,
-        total_count=total_count,
-        total_pages=total_pages,
-        has_next=page < total_pages,
-        has_prev=page > 1
+        total_count=len(items) + ((page - 1) * page_size) if total_count < 0 else total_count,
+        total_pages=page + (1 if has_next else 0) if total_pages == 0 else total_pages,
+        has_next=has_next,
+        has_prev=has_prev
     )

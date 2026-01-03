@@ -36,9 +36,9 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
 Set-Location $ScriptDir
 
-# Use venv313 at project root
-$VenvPython = Join-Path $ProjectRoot "venv313\Scripts\python.exe"
-$VenvPip = Join-Path $ProjectRoot "venv313\Scripts\pip.exe"
+# Use .venv in api folder
+$VenvPython = Join-Path $ScriptDir ".venv\Scripts\python.exe"
+$VenvPip = Join-Path $ScriptDir ".venv\Scripts\pip.exe"
 
 # Banner
 Write-Host ""
@@ -50,17 +50,14 @@ Write-Host "================================================" -ForegroundColor C
 if ($Setup) {
     Write-Host "`nSetting up development environment..." -ForegroundColor Yellow
     
-    Set-Location $ProjectRoot
-    
-    if (-not (Test-Path "venv313")) {
+    if (-not (Test-Path ".venv")) {
         Write-Host "Creating virtual environment (Python 3.13)..."
-        py -3.13 -m venv venv313
+        py -3.13 -m venv .venv
     }
     
     Write-Host "Installing dependencies..."
-    & $VenvPip install -r (Join-Path $ScriptDir "requirements.txt")
-    
-    Set-Location $ScriptDir
+    & $VenvPip install -r "requirements.txt"
+    & $VenvPip install "psycopg[binary]"
     
     Write-Host "Creating data directory..."
     New-Item -ItemType Directory -Path "data" -Force | Out-Null
@@ -114,7 +111,7 @@ Write-Host "  API Docs:  http://127.0.0.1:$Port/docs" -ForegroundColor White
 if ($Prod) {
     Write-Host "  Mode:      Production" -ForegroundColor White
 } else {
-    Write-Host "  Mode:      Development (auto-reload)" -ForegroundColor White
+    Write-Host "  Mode:      Development" -ForegroundColor White
 }
 Write-Host ""
 Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
@@ -123,5 +120,6 @@ Write-Host ""
 if ($Prod) {
     & $VenvPython run.py --port $Port --prod
 } else {
-    & $VenvPython run.py --port $Port
+    # Use --no-reload to avoid subprocess Python version mismatch
+    & $VenvPython run.py --port $Port --no-reload
 }

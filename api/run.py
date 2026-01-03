@@ -71,6 +71,7 @@ def main():
         host=host,
         port=port,
         reload=reload,
+        reload_dirs=[script_dir] if reload else None,
     )
 
 

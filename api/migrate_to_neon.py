@@ -1,6 +1,11 @@
 """
 Migrate SQLite database to Neon PostgreSQL.
 
+Features:
+- Skips tables where source/target counts match (resume-friendly)
+- Converts SQLite booleans (0/1) to PostgreSQL booleans
+- Shows progress and storage usage
+
 Run from the api directory:
     python migrate_to_neon.py
 """
@@ -23,9 +28,6 @@ LOCAL_DB = Path(__file__).parent / "data" / "ohio_fraud_tracker.db"
 # Batch size for inserts (adjust if memory issues)
 BATCH_SIZE = 1000
 
-# How often to check storage (every N tables)
-STORAGE_CHECK_INTERVAL = 5
-
 # =============================================================================
 # TYPE MAPPING: SQLite → PostgreSQL
 # =============================================================================
@@ -40,6 +42,15 @@ SQLITE_TO_PG_TYPES = {
     "DATETIME": "TIMESTAMP",
     "DATE": "DATE",
     "VARCHAR": "VARCHAR",
+}
+
+# Columns that should be treated as boolean (SQLite stores as 0/1)
+BOOLEAN_COLUMNS = {
+    "is_resolved",
+    "is_active",
+    "is_deleted",
+    "enabled",
+    "verified",
 }
 
 def convert_type(sqlite_type: str) -> str:
@@ -64,7 +75,6 @@ def convert_type(sqlite_type: str) -> str:
 def get_storage_info(conn) -> dict:
     """Get current database storage usage."""
     with conn.cursor() as cur:
-        # Get database size
         cur.execute("SELECT pg_database_size(current_database())")
         size_bytes = cur.fetchone()[0]
         size_mb = size_bytes / (1024 * 1024)
@@ -87,6 +97,36 @@ def print_storage_status(conn, prefix=""):
     print(f"{prefix}💾 Storage used: {size_str}")
 
 # =============================================================================
+# RECORD COUNT FUNCTIONS
+# =============================================================================
+
+def get_sqlite_count(cursor, table_name: str) -> int:
+    """Get row count from SQLite table."""
+    cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+    return cursor.fetchone()[0]
+
+def get_pg_count(conn, table_name: str) -> int:
+    """Get row count from PostgreSQL table. Returns 0 if table doesn't exist."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+            return cur.fetchone()[0]
+    except Exception:
+        conn.rollback()
+        return 0
+
+def table_exists_pg(conn, table_name: str) -> bool:
+    """Check if table exists in PostgreSQL."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = %s
+            )
+        """, (table_name,))
+        return cur.fetchone()[0]
+
+# =============================================================================
 # MIGRATION FUNCTIONS
 # =============================================================================
 
@@ -106,6 +146,31 @@ def get_table_schema(cursor, table_name: str) -> list:
     return cursor.fetchall()  # (cid, name, type, notnull, default, pk)
 
 
+def get_boolean_column_indices(columns: list) -> set:
+    """Get indices of columns that should be boolean."""
+    indices = set()
+    for i, col in enumerate(columns):
+        col_name = col[1].lower()
+        col_type = (col[2] or "").upper()
+        # Check if column name suggests boolean or type is BOOLEAN
+        if col_name in BOOLEAN_COLUMNS or "BOOL" in col_type:
+            indices.add(i)
+    return indices
+
+
+def convert_row_booleans(row: tuple, bool_indices: set) -> tuple:
+    """Convert 0/1 values to True/False for boolean columns."""
+    if not bool_indices:
+        return row
+    
+    row_list = list(row)
+    for idx in bool_indices:
+        if idx < len(row_list) and row_list[idx] is not None:
+            # Convert 0/1 to boolean
+            row_list[idx] = bool(row_list[idx])
+    return tuple(row_list)
+
+
 def create_pg_table(pg_cursor, table_name: str, columns: list):
     """Create PostgreSQL table from SQLite schema."""
     
@@ -115,7 +180,11 @@ def create_pg_table(pg_cursor, table_name: str, columns: list):
     for col in columns:
         cid, name, col_type, notnull, default, pk = col
         
-        pg_type = convert_type(col_type)
+        # Check if this should be boolean
+        if name.lower() in BOOLEAN_COLUMNS or (col_type and "BOOL" in col_type.upper()):
+            pg_type = "BOOLEAN"
+        else:
+            pg_type = convert_type(col_type)
         
         # Build column definition
         col_def = f'"{name}" {pg_type}'
@@ -124,7 +193,14 @@ def create_pg_table(pg_cursor, table_name: str, columns: list):
             col_def += " NOT NULL"
         
         if default is not None:
-            col_def += f" DEFAULT {default}"
+            # Convert boolean defaults
+            if pg_type == "BOOLEAN":
+                if default in ("0", "false", "FALSE"):
+                    col_def += " DEFAULT FALSE"
+                elif default in ("1", "true", "TRUE"):
+                    col_def += " DEFAULT TRUE"
+            else:
+                col_def += f" DEFAULT {default}"
         
         if pk:
             pk_cols.append(name)
@@ -147,6 +223,9 @@ def migrate_table_data(sqlite_cursor, pg_conn, table_name: str, columns: list) -
     
     col_names = [col[1] for col in columns]
     col_list = ", ".join(f'"{c}"' for c in col_names)
+    
+    # Get boolean column indices for conversion
+    bool_indices = get_boolean_column_indices(columns)
     
     # Count rows
     sqlite_cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
@@ -172,6 +251,10 @@ def migrate_table_data(sqlite_cursor, pg_conn, table_name: str, columns: list) -
         rows = sqlite_cursor.fetchmany(BATCH_SIZE)
         if not rows:
             break
+        
+        # Convert boolean values
+        if bool_indices:
+            rows = [convert_row_booleans(row, bool_indices) for row in rows]
         
         try:
             with pg_conn.cursor() as pg_cursor:
@@ -252,16 +335,35 @@ def migrate():
     
     # Migrate each table
     total_rows = 0
-    total_migrated_rows = 0
+    skipped_tables = 0
+    migrated_tables = 0
     start_time = time.time()
     
     for i, table in enumerate(tables, 1):
-        print(f"[{i}/{len(tables)}] Migrating '{table}'...")
+        print(f"[{i}/{len(tables)}] Checking '{table}'...")
+        
+        # Get counts from both databases
+        source_count = get_sqlite_count(sqlite_cursor, table)
+        target_count = get_pg_count(pg_conn, table)
+        
+        # Check if table is already fully migrated
+        if target_count > 0 and source_count == target_count:
+            print(f"   ⏭️  SKIPPED - counts match ({source_count:,} rows in both)")
+            skipped_tables += 1
+            total_rows += source_count
+            print()
+            continue
+        
+        # Show what we're doing
+        if target_count > 0:
+            print(f"   🔄 Source: {source_count:,} | Target: {target_count:,} - will re-migrate")
+        else:
+            print(f"   📥 Source: {source_count:,} rows to migrate")
         
         # Get schema
         columns = get_table_schema(sqlite_cursor, table)
         
-        # Create table in PostgreSQL
+        # Create table in PostgreSQL (drops existing)
         try:
             with pg_conn.cursor() as pg_cursor:
                 create_pg_table(pg_cursor, table, columns)
@@ -274,6 +376,7 @@ def migrate():
         # Migrate data
         rows = migrate_table_data(sqlite_cursor, pg_conn, table, columns)
         total_rows += rows
+        migrated_tables += 1
         
         # Show storage after each table
         print_storage_status(pg_conn, prefix="   ")
@@ -293,8 +396,9 @@ def migrate():
     print()
     print("=" * 60)
     print("📊 MIGRATION COMPLETE")
-    print(f"   Tables: {len(tables)}")
-    print(f"   Total rows: {total_rows:,}")
+    print(f"   Tables migrated: {migrated_tables}")
+    print(f"   Tables skipped:  {skipped_tables}")
+    print(f"   Total rows:      {total_rows:,}")
     print(f"   Time: {elapsed:.1f} seconds ({elapsed/60:.1f} minutes)")
     print("=" * 60)
     

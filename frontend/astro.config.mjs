@@ -1,20 +1,17 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import node from '@astrojs/node';
+import vercel from '@astrojs/vercel';
+
+// Use Vercel adapter in production, Node adapter for local dev
+const isVercel = process.env.VERCEL === '1';
 
 export default defineConfig({
   integrations: [tailwind()],
   output: 'server',
-  adapter: node({
-    mode: 'standalone',
-  }),
+  adapter: isVercel ? vercel() : node({ mode: 'standalone' }),
   server: {
-    port: 3000,
+    port: 4321,
     host: true,
-  },
-  vite: {
-    define: {
-      'import.meta.env.PUBLIC_API_URL': JSON.stringify(process.env.PUBLIC_API_URL || 'http://localhost:8000'),
-    },
   },
 });

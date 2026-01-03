@@ -18,6 +18,55 @@ router = APIRouter()
 
 
 # =============================================================================
+# TOP RECIPIENTS (RED FLAGS)
+# =============================================================================
+
+@router.get("/recipients/top")
+async def get_top_recipients(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Get top recipients by total award amount.
+    Used for Red Flags / Top Recipients analysis.
+    """
+    
+    results = db.query(
+        Recipient.id,
+        Recipient.name,
+        Recipient.city,
+        Recipient.state,
+        Recipient.business_status,
+        func.count(Award.id).label("award_count"),
+        func.sum(Award.amount).label("total_amount")
+    ).join(
+        Award, Award.recipient_id == Recipient.id
+    ).group_by(
+        Recipient.id
+    ).order_by(
+        desc(func.sum(Award.amount))
+    ).limit(limit).all()
+    
+    items = []
+    for i, row in enumerate(results, 1):
+        items.append({
+            "rank": i,
+            "id": row.id,
+            "name": row.name,
+            "city": row.city,
+            "state": row.state,
+            "business_status": row.business_status,
+            "award_count": row.award_count,
+            "total_amount": float(row.total_amount) if row.total_amount else 0
+        })
+    
+    return {
+        "items": items,
+        "count": len(items)
+    }
+
+
+# =============================================================================
 # STATIC ROUTES - Must come before dynamic {recipient_id} routes
 # =============================================================================
 
