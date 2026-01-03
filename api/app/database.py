@@ -1,13 +1,12 @@
 """
 Database connection and session management.
 
-Supports both local SQLite and Turso (libSQL) in production.
+Uses PostgreSQL (Neon) for all environments.
 """
 
 import os
-from pathlib import Path
 from contextlib import contextmanager
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from dotenv import load_dotenv
 
@@ -17,72 +16,27 @@ load_dotenv()
 # CONFIGURATION
 # =============================================================================
 
-# Check for Turso URL (production) or use local SQLite
-TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL")
-TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Determine if we can use Turso (need both credentials AND the libsql package)
-IS_TURSO = False
-DATABASE_URL = None
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required")
 
-if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
-    # Check if libsql dialect is available
-    try:
-        from sqlalchemy.dialects import registry
-        registry.load("sqlite.libsql")
-        # If we get here, libsql is available
-        turso_host = TURSO_DATABASE_URL.replace("libsql://", "")
-        DATABASE_URL = f"sqlite+libsql://{turso_host}?authToken={TURSO_AUTH_TOKEN}&secure=true"
-        IS_TURSO = True
-    except Exception:
-        # libsql not available, fall back to SQLite
-        pass
-
-if not IS_TURSO:
-    # Local development: Use SQLite file
-    BASE_DIR = Path(__file__).resolve().parent.parent
-    DATA_DIR = BASE_DIR / "data"
-    DATA_DIR.mkdir(exist_ok=True)
-    DB_PATH = DATA_DIR / "ohio_fraud_tracker.db"
-    DATABASE_URL = f"sqlite:///{DB_PATH}"
-
+# Handle Neon pooler connection string
+if "channel_binding=require" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("&channel_binding=require", "")
 
 # =============================================================================
 # ENGINE SETUP
 # =============================================================================
 
-def get_engine():
-    """Create database engine with appropriate settings"""
-    
-    if IS_TURSO:
-        engine = create_engine(
-            DATABASE_URL,
-            echo=os.getenv("SQL_ECHO", "false").lower() == "true",
-        )
-    else:
-        # SQLite with optimizations
-        engine = create_engine(
-            DATABASE_URL,
-            echo=os.getenv("SQL_ECHO", "false").lower() == "true",
-            connect_args={"check_same_thread": False},
-        )
-        
-        # SQLite performance optimizations
-        @event.listens_for(engine, "connect")
-        def set_sqlite_pragma(dbapi_connection, connection_record):
-            cursor = dbapi_connection.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute("PRAGMA cache_size=-64000")
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA busy_timeout=30000")
-            cursor.close()
-    
-    return engine
+engine = create_engine(
+    DATABASE_URL,
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true",
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+)
 
-
-# Create engine and session factory
-engine = get_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -121,7 +75,7 @@ def init_db():
     """Create all database tables."""
     from app.models import Base
     Base.metadata.create_all(bind=engine)
-    print(f"Database initialized: {'Turso' if IS_TURSO else 'SQLite'}")
+    print("Database initialized: PostgreSQL (Neon)")
 
 
 def drop_all():
@@ -138,7 +92,6 @@ def drop_all():
 def get_db_info() -> dict:
     """Get database connection info (for debugging/status)"""
     return {
-        "type": "turso" if IS_TURSO else "sqlite",
-        "url": TURSO_DATABASE_URL if IS_TURSO else DATABASE_URL.replace("sqlite:///", ""),
-        "is_production": IS_TURSO,
+        "type": "postgresql",
+        "is_production": True,
     }

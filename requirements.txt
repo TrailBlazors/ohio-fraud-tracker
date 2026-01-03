@@ -10,10 +10,10 @@ numpy>=1.24.0
 
 # Database
 sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0  # PostgreSQL
+psycopg[binary]>=3.1.0  # PostgreSQL (Neon)
 alembic>=1.12.0  # migrations
 
-# API Framework (for later)
+# API Framework
 fastapi>=0.104.0
 uvicorn>=0.24.0
 pydantic>=2.5.0

@@ -5,7 +5,7 @@ python-multipart>=0.0.6
 
 # Database
 sqlalchemy>=2.0.0
-# libsql-experimental  # Optional: For Turso (requires Rust)
+psycopg[binary]>=3.1.0
 
 # Data validation
 pydantic>=2.0.0
