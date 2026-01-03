@@ -1,14 +1,15 @@
 ---
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
-const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+// In dev, use localhost:8000. In prod (Vercel), API is on same domain
+const API_URL = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
 // Fetch top recipients
 let topRecipients = { items: [], count: 0 };
 let error = null;
 
 try {
-  const response = await fetch(`${API_URL}/recipients/top?limit=20`);
+  const response = await fetch(`${API_URL}/api/recipients/top?limit=20`);
   if (response.ok) {
     topRecipients = await response.json();
   } else {
