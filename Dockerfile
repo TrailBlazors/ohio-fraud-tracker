@@ -23,15 +23,11 @@ RUN cd frontend && npm run build
 COPY api/app app/
 COPY api/scripts scripts/
 
-# Move built static files
+# Move built static files to where FastAPI expects them
 RUN mkdir -p static && cp -r frontend/dist/* static/
 
-# Create startup script
-RUN echo '#!/bin/bash\n\
-echo "Refreshing stats cache..."\n\
-python -m scripts.refresh_stats || echo "Cache refresh skipped"\n\
-echo "Starting server..."\n\
-exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}' > /app/start.sh && \
-    chmod +x /app/start.sh
+# Expose port (Railway sets PORT env var)
+EXPOSE 8000
 
-CMD ["/app/start.sh"]
+# Start uvicorn directly (simpler, more reliable)
+CMD ["sh", "-c", "python -m scripts.refresh_stats || true && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
