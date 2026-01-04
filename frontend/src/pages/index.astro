@@ -1,48 +1,6 @@
 ---
 import DashboardLayout from '../layouts/DashboardLayout.astro';
 import OhioFundingMap from '../components/OhioFundingMap.astro';
-import { getQuickStats, formatCurrency, formatNumber, getAwardTypeName, getAwardTypeChipClass, getAwardTypeIcon, getAgencyChipClass, formatDate, getSourceName } from '../lib/api';
-
-let stats;
-let error = null;
-
-try {
-  stats = await getQuickStats();
-} catch (e) {
-  error = 'Unable to load dashboard data. Make sure the API is running.';
-  stats = {
-    total_awards: 0,
-    total_amount: 0,
-    total_recipients: 0,
-    total_flagged: 0,
-    correlation_status: 'no_data',
-    awards_by_source: {},
-  };
-}
-
-const showCorrelationPrompt = stats.correlation_status === 'not_run' && stats.total_awards > 0;
-
-// Source display config
-const sourceConfig: Record<string, { name: string; icon: string; color: string; link: string }> = {
-  usaspending: { 
-    name: 'Federal (USAspending)', 
-    icon: '🇺🇸', 
-    color: 'from-blue-500 to-blue-600',
-    link: '/grants?source=usaspending'
-  },
-  ohio_checkbook: { 
-    name: 'Ohio Checkbook', 
-    icon: '🏛️', 
-    color: 'from-amber-500 to-amber-600',
-    link: '/grants?source=ohio_checkbook'
-  },
-  sba_ppp: { 
-    name: 'SBA PPP Loans', 
-    icon: '💼', 
-    color: 'from-green-500 to-green-600',
-    link: '/loans'
-  },
-};
 ---
 
 <DashboardLayout title="Dashboard">
@@ -78,39 +36,75 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
     </div>
   </div>
 
-  <!-- Error banner -->
-  {error && (
-    <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
-      <span class="font-medium">Error:</span> {error}
-    </div>
-  )}
+  <!-- Error banner (hidden by default) -->
+  <div id="error-banner" class="hidden p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+    <span class="font-medium">Error:</span> <span id="error-message"></span>
+  </div>
 
-  <!-- Correlation Analysis Prompt -->
-  {showCorrelationPrompt && (
-    <div id="correlation-prompt" class="p-4 mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center">
-          <svg class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-          </svg>
-          <div>
-            <p class="font-medium text-amber-800 dark:text-amber-300">Fraud analysis not yet run</p>
-            <p class="text-sm text-amber-700 dark:text-amber-400">Run correlation analysis to detect potential issues in your data.</p>
-          </div>
+  <!-- Correlation Analysis Prompt (hidden by default) -->
+  <div id="correlation-prompt" class="hidden p-4 mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center">
+        <svg class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+        </svg>
+        <div>
+          <p class="font-medium text-amber-800 dark:text-amber-300">Fraud analysis not yet run</p>
+          <p class="text-sm text-amber-700 dark:text-amber-400">Run correlation analysis to detect potential issues in your data.</p>
         </div>
-        <button 
-          id="run-correlation-btn"
-          class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
-        >
-          Run Analysis
-        </button>
       </div>
-      <div id="correlation-result" class="mt-3 hidden"></div>
+      <button 
+        id="run-correlation-btn"
+        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
+      >
+        Run Analysis
+      </button>
     </div>
-  )}
+    <div id="correlation-result" class="mt-3 hidden"></div>
+  </div>
 
-  <!-- Stats Cards -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+  <!-- Stats Cards (loading state) -->
+  <div id="stats-loading" class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+    <div class="stat-card animate-pulse">
+      <div class="flex items-center">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+        <div class="ms-3 sm:ms-4">
+          <div class="h-3 w-20 bg-gray-300 dark:bg-gray-700 rounded mb-2"></div>
+          <div class="h-6 w-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card animate-pulse">
+      <div class="flex items-center">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+        <div class="ms-3 sm:ms-4">
+          <div class="h-3 w-20 bg-gray-300 dark:bg-gray-700 rounded mb-2"></div>
+          <div class="h-6 w-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card animate-pulse">
+      <div class="flex items-center">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+        <div class="ms-3 sm:ms-4">
+          <div class="h-3 w-20 bg-gray-300 dark:bg-gray-700 rounded mb-2"></div>
+          <div class="h-6 w-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-card animate-pulse">
+      <div class="flex items-center">
+        <div class="w-10 h-10 sm:w-12 sm:h-12 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+        <div class="ms-3 sm:ms-4">
+          <div class="h-3 w-20 bg-gray-300 dark:bg-gray-700 rounded mb-2"></div>
+          <div class="h-6 w-24 bg-gray-300 dark:bg-gray-700 rounded"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards (actual content - hidden until loaded) -->
+  <div id="stats-cards" class="hidden grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
     <div class="stat-card">
       <div class="flex items-center">
         <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md shadow-blue-500/20">
@@ -120,7 +114,7 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
         </div>
         <div class="ms-3 sm:ms-4">
           <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Total Funding</h3>
-          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">${formatNumber(stats.total_amount)}</p>
+          <p id="stat-total-amount" class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">$0</p>
         </div>
       </div>
     </div>
@@ -134,7 +128,7 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
         </div>
         <div class="ms-3 sm:ms-4">
           <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Total Awards</h3>
-          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.total_awards.toLocaleString()}</p>
+          <p id="stat-total-awards" class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">0</p>
         </div>
       </div>
     </div>
@@ -148,7 +142,7 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
         </div>
         <div class="ms-3 sm:ms-4">
           <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Recipients</h3>
-          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.total_recipients.toLocaleString()}</p>
+          <p id="stat-total-recipients" class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">0</p>
         </div>
       </div>
     </div>
@@ -162,51 +156,23 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
         </div>
         <div class="ms-3 sm:ms-4">
           <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Flagged Issues</h3>
-          <p class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">
-            {stats.total_flagged.toLocaleString()}
-            {stats.correlation_status === 'not_run' && stats.total_awards > 0 && (
-              <span class="text-sm font-normal text-amber-500 ml-2">⚠️</span>
-            )}
-          </p>
+          <p id="stat-total-flagged" class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">0</p>
         </div>
       </div>
     </a>
   </div>
 
   <!-- Data Sources Row -->
-  {Object.keys(stats.awards_by_source).length > 0 && (
-    <div class="mb-4 sm:mb-6">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Data Sources</h3>
-        <a href="/data-status" class="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">
-          View details →
-        </a>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        {Object.entries(stats.awards_by_source).map(([source, data]) => {
-          const config = sourceConfig[source] || { name: source, icon: '📄', color: 'from-gray-500 to-gray-600', link: '/grants' };
-          return (
-            <a href={config.link} class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 sm:p-4 hover:shadow-lg transition-shadow">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2 sm:gap-3">
-                  <div class={`inline-flex flex-shrink-0 justify-center items-center w-8 h-8 sm:w-10 sm:h-10 text-white bg-gradient-to-br ${config.color} rounded-lg text-sm sm:text-lg`}>
-                    {config.icon}
-                  </div>
-                  <div>
-                    <p class="font-medium text-gray-900 dark:text-white text-sm">{config.name}</p>
-                    <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{data.count.toLocaleString()} records</p>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <p class="text-sm sm:text-lg font-bold text-green-600 dark:text-green-400">${formatNumber(data.total)}</p>
-                </div>
-              </div>
-            </a>
-          );
-        })}
-      </div>
+  <div id="data-sources" class="hidden mb-4 sm:mb-6">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Data Sources</h3>
+      <a href="/data-status" class="text-xs sm:text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400">
+        View details →
+      </a>
     </div>
-  )}
+    <div id="data-sources-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+    </div>
+  </div>
 
   <!-- Ohio Funding Map - Full Width -->
   <div class="mb-4 sm:mb-6">
@@ -264,232 +230,298 @@ const sourceConfig: Record<string, { name: string; icon: string; color: string; 
       </a>
     </div>
   </div>
+</DashboardLayout>
 
-  <!-- Run Correlation Script -->
-  <script is:inline>
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('run-correlation-btn');
-      const resultDiv = document.getElementById('correlation-result');
-      const promptDiv = document.getElementById('correlation-prompt');
+<script is:inline src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script is:inline>
+  // API base URL - empty string for same-origin requests in production
+  const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+  
+  // Helper functions
+  function formatNumber(num) {
+    if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+    if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+    if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+    return num.toLocaleString();
+  }
+  
+  function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric'
+    });
+  }
+  
+  function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD',
+      minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(amount);
+  }
+  
+  // Source config
+  const sourceConfig = {
+    usaspending: { 
+      name: 'Federal (USAspending)', 
+      icon: '🇺🇸', 
+      color: 'from-blue-500 to-blue-600',
+      link: '/grants?source=usaspending'
+    },
+    ohio_checkbook: { 
+      name: 'Ohio Checkbook', 
+      icon: '🏛️', 
+      color: 'from-amber-500 to-amber-600',
+      link: '/grants?source=ohio_checkbook'
+    },
+    sba_ppp: { 
+      name: 'SBA PPP Loans', 
+      icon: '💼', 
+      color: 'from-green-500 to-green-600',
+      link: '/loans'
+    },
+  };
+  
+  // Load quick stats
+  async function loadStats() {
+    try {
+      const response = await fetch(`${apiBase}/api/stats/quick`);
+      if (!response.ok) throw new Error('Failed to load stats');
+      const stats = await response.json();
       
-      // Use relative URL in production, localhost in dev
-      const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+      // Update stat cards
+      document.getElementById('stat-total-amount').textContent = '$' + formatNumber(stats.total_amount);
+      document.getElementById('stat-total-awards').textContent = stats.total_awards.toLocaleString();
+      document.getElementById('stat-total-recipients').textContent = stats.total_recipients.toLocaleString();
+      document.getElementById('stat-total-flagged').textContent = stats.total_flagged.toLocaleString();
       
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Analyzing...';
+      // Show correlation prompt if needed
+      if (stats.correlation_status === 'not_run' && stats.total_awards > 0) {
+        document.getElementById('correlation-prompt').classList.remove('hidden');
+      }
+      
+      // Show data sources if we have them
+      if (stats.awards_by_source && Object.keys(stats.awards_by_source).length > 0) {
+        const grid = document.getElementById('data-sources-grid');
+        grid.innerHTML = Object.entries(stats.awards_by_source).map(([source, data]) => {
+          const config = sourceConfig[source] || { name: source, icon: '📄', color: 'from-gray-500 to-gray-600', link: '/grants' };
+          return `
+            <a href="${config.link}" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-3 sm:p-4 hover:shadow-lg transition-shadow">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 sm:gap-3">
+                  <div class="inline-flex flex-shrink-0 justify-center items-center w-8 h-8 sm:w-10 sm:h-10 text-white bg-gradient-to-br ${config.color} rounded-lg text-sm sm:text-lg">
+                    ${config.icon}
+                  </div>
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white text-sm">${config.name}</p>
+                    <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400">${data.count.toLocaleString()} records</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <p class="text-sm sm:text-lg font-bold text-green-600 dark:text-green-400">$${formatNumber(data.total)}</p>
+                </div>
+              </div>
+            </a>
+          `;
+        }).join('');
+        document.getElementById('data-sources').classList.remove('hidden');
+      }
+      
+      // Hide loading, show actual stats
+      document.getElementById('stats-loading').classList.add('hidden');
+      document.getElementById('stats-cards').classList.remove('hidden');
+      
+    } catch (err) {
+      document.getElementById('error-message').textContent = 'Unable to load dashboard data. Is the API running?';
+      document.getElementById('error-banner').classList.remove('hidden');
+      document.getElementById('stats-loading').classList.add('hidden');
+    }
+  }
+  
+  // Load Awards by Type chart
+  async function loadAwardsByType() {
+    try {
+      const response = await fetch(`${apiBase}/api/stats/awards-by-type`);
+      const awardsData = await response.json();
+      
+      const chartEl = document.querySelector('#awards-by-type-chart');
+      if (!Object.keys(awardsData).length) {
+        chartEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>';
+        return;
+      }
+      
+      const typeNames = {
+        block_grant: 'Block Grant', formula_grant: 'Formula Grant',
+        project_grant: 'Project Grant', cooperative_agreement: 'Cooperative',
+        direct_loan: 'Direct Loan', guaranteed_loan: 'Guaranteed Loan',
+        direct_payment: 'Direct Payment', loan: 'PPP Loan',
+        contract: 'Contract', other: 'Other'
+      };
+      
+      const labels = Object.keys(awardsData).map(type => typeNames[type] || type);
+      const series = Object.values(awardsData).map(d => d.count);
+      
+      chartEl.innerHTML = '';
+      const chart = new ApexCharts(chartEl, {
+        series, labels,
+        chart: { type: 'donut', height: 300 },
+        colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444'],
+        legend: { position: 'bottom', labels: { colors: '#9ca3af' } },
+        plotOptions: { pie: { donut: { size: '60%' } } },
+        dataLabels: { enabled: false }
+      });
+      chart.render();
+    } catch (err) {
+      document.querySelector('#awards-by-type-chart').innerHTML = 
+        '<p class="text-gray-500 text-center py-8">Failed to load chart</p>';
+    }
+  }
+  
+  // Load Top Agencies
+  async function loadTopAgencies() {
+    try {
+      const response = await fetch(`${apiBase}/api/stats/top-agencies`);
+      const agencies = await response.json();
+      
+      const container = document.querySelector('#top-agencies-list');
+      if (!agencies.length) {
+        container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">No agency data available</p>';
+        return;
+      }
+      
+      container.innerHTML = '<div class="space-y-3">' + agencies.slice(0, 8).map(agency => `
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="chip chip-agency">${agency.code}</span>
+            <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${agency.name}</p>
+          </div>
+          <div class="text-right flex-shrink-0 ml-4">
+            <p class="text-sm font-semibold text-gray-900 dark:text-white">$${formatNumber(agency.total_amount)}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">${agency.total_awards.toLocaleString()} awards</p>
+          </div>
+        </div>
+      `).join('') + '</div>';
+    } catch (err) {
+      document.querySelector('#top-agencies-list').innerHTML = 
+        '<p class="text-gray-500 text-center py-4">Failed to load agencies</p>';
+    }
+  }
+  
+  // Load Recent Awards
+  async function loadRecentAwards() {
+    try {
+      const response = await fetch(`${apiBase}/api/stats/recent-awards`);
+      const awards = await response.json();
+      
+      const container = document.querySelector('#recent-awards-container');
+      if (!awards.length) {
+        container.innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">No recent awards found</p>';
+        return;
+      }
+      
+      const sourceIcons = { usaspending: '🇺🇸', ohio_checkbook: '🏛️', sba_ppp: '💼' };
+      const sourceClasses = {
+        usaspending: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+        ohio_checkbook: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
+      };
+      
+      container.innerHTML = `
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+              <tr class="text-gray-600 dark:text-gray-300">
+                <th class="px-4 py-3 w-1/3">Recipient</th>
+                <th class="px-4 py-3 w-16 text-center">Source</th>
+                <th class="px-4 py-3 w-20 text-center">Agency</th>
+                <th class="px-4 py-3 w-28 text-right">Amount</th>
+                <th class="px-4 py-3 w-28 text-right">Date</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              ${awards.map(award => `
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td class="px-4 py-3">
+                    <div class="font-medium text-gray-900 dark:text-white truncate">${award.recipient_name}</div>
+                    ${award.recipient_city ? `<div class="text-xs text-gray-500 dark:text-gray-400">${award.recipient_city}</div>` : ''}
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded ${sourceClasses[award.source] || 'bg-gray-100 text-gray-800'}">
+                      ${sourceIcons[award.source] || '📄'}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    ${award.agency_code ? `<span class="chip chip-agency">${award.agency_code}</span>` : '<span class="text-gray-400">—</span>'}
+                  </td>
+                  <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+                    ${formatCurrency(award.amount)}
+                  </td>
+                  <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                    ${formatDate(award.award_date)}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } catch (err) {
+      document.querySelector('#recent-awards-container').innerHTML = 
+        '<p class="text-center py-8 text-gray-500">Failed to load recent awards</p>';
+    }
+  }
+  
+  // Correlation button handler
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('run-correlation-btn');
+    const resultDiv = document.getElementById('correlation-result');
+    
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Analyzing...';
+        
+        try {
+          const response = await fetch(`${apiBase}/api/correlation/run`, { method: 'POST' });
+          const result = await response.json();
           
-          try {
-            const response = await fetch(`${apiBase}/api/correlation/run`, {
-              method: 'POST',
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-              resultDiv.innerHTML = `
-                <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                  <p class="font-medium">✓ Analysis complete!</p>
-                  <p class="text-sm mt-1">Found ${result.flags_found} potential issues. ${result.flags_saved} saved to database.</p>
-                  <p class="text-sm mt-2"><a href="/flagged" class="underline">View flagged items →</a></p>
-                </div>
-              `;
-              resultDiv.classList.remove('hidden');
-              
-              // Reload after 2 seconds to update stats
-              setTimeout(() => window.location.reload(), 2000);
-            } else {
-              resultDiv.innerHTML = `
-                <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
-                  <p class="font-medium">Error running analysis</p>
-                  <p class="text-sm">${result.error || 'Unknown error'}</p>
-                </div>
-              `;
-              resultDiv.classList.remove('hidden');
-              btn.disabled = false;
-              btn.textContent = 'Retry';
-            }
-          } catch (err) {
+          if (result.success) {
+            resultDiv.innerHTML = `
+              <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                <p class="font-medium">✓ Analysis complete!</p>
+                <p class="text-sm mt-1">Found ${result.flags_found} potential issues. ${result.flags_saved} saved to database.</p>
+                <p class="text-sm mt-2"><a href="/flagged" class="underline">View flagged items →</a></p>
+              </div>
+            `;
+            resultDiv.classList.remove('hidden');
+            setTimeout(() => window.location.reload(), 2000);
+          } else {
             resultDiv.innerHTML = `
               <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
-                <p class="font-medium">Connection error</p>
-                <p class="text-sm">Could not connect to API. Is the server running?</p>
+                <p class="font-medium">Error running analysis</p>
+                <p class="text-sm">${result.error || 'Unknown error'}</p>
               </div>
             `;
             resultDiv.classList.remove('hidden');
             btn.disabled = false;
             btn.textContent = 'Retry';
           }
-        });
-      }
-    });
-  </script>
-
-  <!-- ApexCharts for Awards by Type -->
-  <script is:inline src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <script is:inline>
-    // Use relative URL in production, localhost in dev
-    const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
-    
-    // Helper functions
-    function formatNumber(num) {
-      if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
-      if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
-      if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-      return num.toLocaleString();
-    }
-    
-    function formatDate(dateStr) {
-      if (!dateStr) return '—';
-      return new Date(dateStr).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'short', day: 'numeric'
+        } catch (err) {
+          resultDiv.innerHTML = `
+            <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+              <p class="font-medium">Connection error</p>
+              <p class="text-sm">Could not connect to API.</p>
+            </div>
+          `;
+          resultDiv.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Retry';
+        }
       });
     }
     
-    function formatCurrency(amount) {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency', currency: 'USD',
-        minimumFractionDigits: 0, maximumFractionDigits: 0
-      }).format(amount);
-    }
-    
-    // Load Awards by Type chart
-    async function loadAwardsByType() {
-      try {
-        const response = await fetch(`${apiBase}/api/stats/awards-by-type`);
-        const awardsData = await response.json();
-        
-        const chartEl = document.querySelector('#awards-by-type-chart');
-        if (!Object.keys(awardsData).length) {
-          chartEl.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>';
-          return;
-        }
-        
-        const typeNames = {
-          block_grant: 'Block Grant', formula_grant: 'Formula Grant',
-          project_grant: 'Project Grant', cooperative_agreement: 'Cooperative',
-          direct_loan: 'Direct Loan', guaranteed_loan: 'Guaranteed Loan',
-          direct_payment: 'Direct Payment', loan: 'PPP Loan',
-          contract: 'Contract', other: 'Other'
-        };
-        
-        const labels = Object.keys(awardsData).map(type => typeNames[type] || type);
-        const series = Object.values(awardsData).map(d => d.count);
-        
-        chartEl.innerHTML = '';
-        const chart = new ApexCharts(chartEl, {
-          series, labels,
-          chart: { type: 'donut', height: 300 },
-          colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444'],
-          legend: { position: 'bottom', labels: { colors: '#9ca3af' } },
-          plotOptions: { pie: { donut: { size: '60%' } } },
-          dataLabels: { enabled: false }
-        });
-        chart.render();
-      } catch (err) {
-        document.querySelector('#awards-by-type-chart').innerHTML = 
-          '<p class="text-gray-500 text-center py-8">Failed to load chart</p>';
-      }
-    }
-    
-    // Load Top Agencies
-    async function loadTopAgencies() {
-      try {
-        const response = await fetch(`${apiBase}/api/stats/top-agencies`);
-        const agencies = await response.json();
-        
-        const container = document.querySelector('#top-agencies-list');
-        if (!agencies.length) {
-          container.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">No agency data available</p>';
-          return;
-        }
-        
-        container.innerHTML = '<div class="space-y-3">' + agencies.slice(0, 8).map(agency => `
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3 min-w-0">
-              <span class="chip chip-agency">${agency.code}</span>
-              <p class="text-sm text-gray-600 dark:text-gray-400 truncate">${agency.name}</p>
-            </div>
-            <div class="text-right flex-shrink-0 ml-4">
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">${formatNumber(agency.total_amount)}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">${agency.total_awards.toLocaleString()} awards</p>
-            </div>
-          </div>
-        `).join('') + '</div>';
-      } catch (err) {
-        document.querySelector('#top-agencies-list').innerHTML = 
-          '<p class="text-gray-500 text-center py-4">Failed to load agencies</p>';
-      }
-    }
-    
-    // Load Recent Awards
-    async function loadRecentAwards() {
-      try {
-        const response = await fetch(`${apiBase}/api/stats/recent-awards`);
-        const awards = await response.json();
-        
-        const container = document.querySelector('#recent-awards-container');
-        if (!awards.length) {
-          container.innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">No recent awards found</p>';
-          return;
-        }
-        
-        const sourceIcons = { usaspending: '🇺🇸', ohio_checkbook: '🏛️', sba_ppp: '💼' };
-        const sourceClasses = {
-          usaspending: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-          ohio_checkbook: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
-        };
-        
-        container.innerHTML = `
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
-                <tr class="text-gray-600 dark:text-gray-300">
-                  <th class="px-4 py-3 w-1/3">Recipient</th>
-                  <th class="px-4 py-3 w-16 text-center">Source</th>
-                  <th class="px-4 py-3 w-20 text-center">Agency</th>
-                  <th class="px-4 py-3 w-28 text-right">Amount</th>
-                  <th class="px-4 py-3 w-28 text-right">Date</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                ${awards.map(award => `
-                  <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td class="px-4 py-3">
-                      <div class="font-medium text-gray-900 dark:text-white truncate">${award.recipient_name}</div>
-                      ${award.recipient_city ? `<div class="text-xs text-gray-500 dark:text-gray-400">${award.recipient_city}</div>` : ''}
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded ${sourceClasses[award.source] || 'bg-gray-100 text-gray-800'}">
-                        ${sourceIcons[award.source] || '📄'}
-                      </span>
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      ${award.agency_code ? `<span class="chip chip-agency">${award.agency_code}</span>` : '<span class="text-gray-400">—</span>'}
-                    </td>
-                    <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-                      ${formatCurrency(award.amount)}
-                    </td>
-                    <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                      ${formatDate(award.award_date)}
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        `;
-      } catch (err) {
-        document.querySelector('#recent-awards-container').innerHTML = 
-          '<p class="text-center py-8 text-gray-500">Failed to load recent awards</p>';
-      }
-    }
-    
-    // Load all lazy data
-    document.addEventListener('DOMContentLoaded', () => {
-      loadAwardsByType();
-      loadTopAgencies();
-      loadRecentAwards();
-    });
-  </script>
-</DashboardLayout>
+    // Load all data
+    loadStats();
+    loadAwardsByType();
+    loadTopAgencies();
+    loadRecentAwards();
+  });
+</script>
