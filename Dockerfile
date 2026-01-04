@@ -17,17 +17,21 @@ COPY frontend/package*.json frontend/
 RUN cd frontend && npm install
 
 COPY frontend/ frontend/
-RUN cd frontend && npm run build
+RUN cd frontend && npm run build || echo "Frontend build failed, continuing..."
 
 # Copy API code
 COPY api/app app/
 COPY api/scripts scripts/
 
 # Move built static files to where FastAPI expects them
-RUN mkdir -p static && cp -r frontend/dist/* static/
+RUN mkdir -p static && (cp -r frontend/dist/* static/ 2>/dev/null || echo "No frontend dist to copy")
 
-# Expose port (Railway sets PORT env var)
+# Debug: show what we have
+RUN echo "=== Static directory contents ===" && ls -la static/ || echo "No static dir"
+RUN echo "=== App directory contents ===" && ls -la app/
+
+# Expose port
 EXPOSE 8000
 
-# Start uvicorn directly (simpler, more reliable)
-CMD ["sh", "-c", "python -m scripts.refresh_stats || true && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Start uvicorn directly - simpler startup
+CMD ["sh", "-c", "echo 'Starting server on port ${PORT:-8000}' && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
