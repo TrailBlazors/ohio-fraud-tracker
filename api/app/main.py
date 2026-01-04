@@ -116,6 +116,37 @@ async def page_politicians():
     return serve_page("politicians")
 
 
+@app.get("/search")
+async def page_search():
+    return serve_page("search")
+
+
+@app.get("/red-flags")
+async def page_red_flags():
+    """Serve red-flags index page"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend not available")
+    
+    index_path = STATIC_DIR / "red-flags" / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path, media_type="text/html")
+    
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
+@app.get("/red-flags/top-recipients")
+async def page_red_flags_top_recipients():
+    """Serve top recipients analysis page"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend not available")
+    
+    index_path = STATIC_DIR / "red-flags" / "top-recipients" / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path, media_type="text/html")
+    
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
 @app.get("/recipients")
 async def page_recipients():
     return serve_page("recipients")

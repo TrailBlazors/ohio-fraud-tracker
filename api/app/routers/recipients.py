@@ -99,10 +99,16 @@ async def get_flagged_recipients(
 ):
     """
     Get recipients with fraud flags from correlation analysis.
-    Uses pre-computed flags from fraud_flags table for fast loading.
+    Includes recipient details and total funding amounts.
     """
     
-    # Query from fraud_flags table (fast)
+    # Query flags with recipient details and award totals
+    award_totals = db.query(
+        Award.recipient_id,
+        func.count(Award.id).label("award_count"),
+        func.sum(Award.amount).label("total_amt")
+    ).group_by(Award.recipient_id).subquery()
+    
     query = db.query(
         FraudFlag.id.label("flag_id"),
         FraudFlag.flag_type,
@@ -112,9 +118,13 @@ async def get_flagged_recipients(
         FraudFlag.created_at,
         Recipient.name,
         Recipient.city,
-        Recipient.business_status
+        Recipient.business_status,
+        func.coalesce(award_totals.c.award_count, 0).label("total_awards"),
+        func.coalesce(award_totals.c.total_amt, 0).label("total_amount")
     ).join(
         Recipient, FraudFlag.recipient_id == Recipient.id
+    ).outerjoin(
+        award_totals, award_totals.c.recipient_id == Recipient.id
     ).filter(
         FraudFlag.is_resolved == False,
         FraudFlag.recipient_id.isnot(None)
@@ -123,8 +133,11 @@ async def get_flagged_recipients(
         desc(FraudFlag.created_at)
     )
     
-    # Get total count (fast - just counting flags)
-    total_count = query.count()
+    # Get total count
+    total_count = db.query(func.count(FraudFlag.id)).filter(
+        FraudFlag.is_resolved == False,
+        FraudFlag.recipient_id.isnot(None)
+    ).scalar() or 0
     
     # Paginate
     offset = (page - 1) * page_size
@@ -134,12 +147,12 @@ async def get_flagged_recipients(
     for row in results:
         items.append({
             "id": row.recipient_id,
-            "name": row.name,
-            "city": row.city,
-            "business_status": row.business_status,
-            "total_awards": 0,  # Skip expensive calculation
-            "total_amount": 0,
-            "flag_reason": row.description,
+            "name": row.name or "Unknown Recipient",
+            "city": row.city or "Ohio",
+            "business_status": row.business_status or "unknown",
+            "total_awards": row.total_awards or 0,
+            "total_amount": float(row.total_amount) if row.total_amount else 0,
+            "flag_reason": row.description or "Flagged for review",
             "flag_type": row.flag_type,
             "severity": row.severity,
             "flag_id": row.flag_id
