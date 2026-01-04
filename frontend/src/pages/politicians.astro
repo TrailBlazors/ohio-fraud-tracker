@@ -2,31 +2,6 @@
 import DashboardLayout from '../layouts/DashboardLayout.astro';
 import politiciansData from '../data/politicians.json';
 
-// Get filter params
-const url = new URL(Astro.request.url);
-const chamberFilter = url.searchParams.get('chamber') || '';
-const partyFilter = url.searchParams.get('party') || '';
-const searchQuery = url.searchParams.get('q') || '';
-
-// Filter legislators
-let legislators = politiciansData.legislators;
-
-if (chamberFilter) {
-  legislators = legislators.filter(l => l.chamber === chamberFilter);
-}
-
-if (partyFilter) {
-  legislators = legislators.filter(l => l.party === partyFilter);
-}
-
-if (searchQuery) {
-  const q = searchQuery.toLowerCase();
-  legislators = legislators.filter(l => 
-    l.name.toLowerCase().includes(q) || 
-    (l.district && l.district.toString().includes(q))
-  );
-}
-
 // Count by chamber
 const houseDems = politiciansData.legislators.filter(l => l.chamber === 'House' && l.party === 'D').length;
 const houseReps = politiciansData.legislators.filter(l => l.chamber === 'House' && l.party === 'R').length;
@@ -41,34 +16,28 @@ function getPartyGradient(party: string): string {
   }
 }
 
-function getPartyAccent(party: string): string {
+function getPartyBorder(party: string): string {
   switch (party) {
-    case 'D': return 'border-blue-500 bg-blue-50 dark:bg-blue-950';
-    case 'R': return 'border-red-500 bg-red-50 dark:bg-red-950';
-    default: return 'border-gray-500 bg-gray-50 dark:bg-gray-950';
+    case 'D': return 'border-blue-500';
+    case 'R': return 'border-red-500';
+    default: return 'border-gray-500';
   }
 }
 
-function getPartyBadgeClass(party: string): string {
+function getPartyButton(party: string): string {
   switch (party) {
-    case 'D': return 'bg-blue-600 text-white';
-    case 'R': return 'bg-red-600 text-white';
-    default: return 'bg-gray-600 text-white';
+    case 'D': return 'bg-blue-600 hover:bg-blue-700';
+    case 'R': return 'bg-red-600 hover:bg-red-700';
+    default: return 'bg-gray-600 hover:bg-gray-700';
   }
 }
 
-function getPartyLetter(party: string): string {
-  return party;
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .filter(n => !['Jr.', 'Jr', 'III', 'II', 'IV'].includes(n))
-    .map(n => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+function getPartyAvatar(party: string): string {
+  switch (party) {
+    case 'D': return 'bg-blue-400 text-blue-900';
+    case 'R': return 'bg-red-400 text-red-900';
+    default: return 'bg-gray-400 text-gray-900';
+  }
 }
 
 function getChamberBadge(chamber: string): { icon: string; label: string; class: string } {
@@ -83,6 +52,19 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
       return { icon: '📍', label: chamber, class: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' };
   }
 }
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .filter(n => !['Jr.', 'Jr', 'III', 'II', 'IV'].includes(n))
+    .map(n => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+// Pass data to client
+const allLegislators = politiciansData.legislators;
 ---
 
 <DashboardLayout 
@@ -129,10 +111,10 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
 
   <!-- Filters -->
   <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
-    <form method="get" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
       <div>
         <label for="q" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Search</label>
-        <input type="text" id="q" name="q" value={searchQuery}
+        <input type="text" id="q" name="q"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           placeholder="Name or district..." />
       </div>
@@ -142,9 +124,9 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
         <select id="chamber" name="chamber"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
           <option value="">All Chambers</option>
-          <option value="House" selected={chamberFilter === 'House'}>Ohio House</option>
-          <option value="Senate" selected={chamberFilter === 'Senate'}>Ohio Senate</option>
-          <option value="US Senate" selected={chamberFilter === 'US Senate'}>US Senate</option>
+          <option value="House">Ohio House</option>
+          <option value="Senate">Ohio Senate</option>
+          <option value="US Senate">US Senate</option>
         </select>
       </div>
       
@@ -153,26 +135,24 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
         <select id="party" name="party"
           class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
           <option value="">All Parties</option>
-          <option value="R" selected={partyFilter === 'R'}>Republican</option>
-          <option value="D" selected={partyFilter === 'D'}>Democrat</option>
+          <option value="R">Republican</option>
+          <option value="D">Democrat</option>
         </select>
       </div>
       
       <div class="flex items-end">
-        <button type="submit" class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700">
+        <button type="button" id="filter-btn" class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-primary-600 dark:hover:bg-primary-700">
           Filter
         </button>
       </div>
-    </form>
+    </div>
     
-    {(chamberFilter || partyFilter || searchQuery) && (
-      <div class="mt-3 flex items-center gap-2">
-        <span class="text-sm text-gray-500 dark:text-gray-400">
-          Showing {legislators.length} of {politiciansData.legislators.length}
-        </span>
-        <a href="/politicians" class="text-sm text-red-600 hover:text-red-700 dark:text-red-400">Clear filters</a>
-      </div>
-    )}
+    <div id="filter-info" class="hidden mt-3 flex items-center gap-2">
+      <span class="text-sm text-gray-500 dark:text-gray-400">
+        Showing <span id="showing-count">0</span> of {politiciansData.legislators.length}
+      </span>
+      <button type="button" id="clear-btn" class="text-sm text-red-600 hover:text-red-700 dark:text-red-400">Clear filters</button>
+    </div>
   </div>
 
   <!-- Action Buttons -->
@@ -187,22 +167,26 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
   </div>
 
   <!-- Politicians Grid -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-    {legislators.map((leg) => {
+  <div id="politicians-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    {allLegislators.map((leg) => {
       const chamberInfo = getChamberBadge(leg.chamber);
       return (
-        <div class={`bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-200 border-l-4 ${leg.party === 'D' ? 'border-blue-500' : leg.party === 'R' ? 'border-red-500' : 'border-gray-500'}`}>
+        <div class="politician-card bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-200 border-l-4"
+             data-chamber={leg.chamber}
+             data-party={leg.party}
+             data-name={leg.name.toLowerCase()}
+             data-district={leg.district || ''}
+             class:list={[getPartyBorder(leg.party)]}>
           <!-- Header with party color -->
-          <div class={`bg-gradient-to-r ${getPartyGradient(leg.party)} px-4 py-3`}>
+          <div class:list={["bg-gradient-to-r px-4 py-3", getPartyGradient(leg.party)]}>
             <div class="flex items-center gap-3">
-              <!-- Avatar with initials -->
-              <div class={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold ${leg.party === 'D' ? 'bg-blue-400 text-blue-900' : leg.party === 'R' ? 'bg-red-400 text-red-900' : 'bg-gray-400 text-gray-900'}`}>
+              <div class:list={["w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold", getPartyAvatar(leg.party)]}>
                 {getInitials(leg.name)}
               </div>
               <div class="flex-1 min-w-0">
                 <h3 class="font-semibold text-white truncate text-sm">{leg.name}</h3>
                 <div class="flex items-center gap-2 mt-0.5">
-                  <span class={`text-xs px-1.5 py-0.5 rounded ${chamberInfo.class}`}>
+                  <span class:list={["text-xs px-1.5 py-0.5 rounded", chamberInfo.class]}>
                     {chamberInfo.icon} {chamberInfo.label}
                   </span>
                   {leg.district && (
@@ -251,7 +235,7 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
             <!-- Contact Button -->
             <div class="mt-4">
               <a href={`mailto:${leg.email || ''}?subject=Ohio%20Fraud%20Concern&body=Dear%20${encodeURIComponent(leg.name.split(' ')[0])}%2C%0A%0AI%20am%20writing%20to%20express%20concern%20about%20federal%20funding%20and%20potential%20fraud%20in%20Ohio.%0A%0AAs%20my%20representative%2C%20I%20urge%20you%20to%20investigate%20and%20ensure%20accountability%20for%20how%20federal%20funds%20are%20being%20used%20in%20our%20state.%0A%0AThank%20you%20for%20your%20attention%20to%20this%20matter.%0A%0ASincerely%2C%0A[Your%20Name]%0A[Your%20Address]`}
-                 class={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-white text-sm font-medium rounded-lg transition-colors ${leg.party === 'D' ? 'bg-blue-600 hover:bg-blue-700' : leg.party === 'R' ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 hover:bg-gray-700'}`}>
+                 class:list={["w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-white text-sm font-medium rounded-lg transition-colors", getPartyButton(leg.party)]}>
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                 </svg>
@@ -264,15 +248,13 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
     })}
   </div>
   
-  {legislators.length === 0 && (
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
-      <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-      </svg>
-      <p class="text-gray-500 dark:text-gray-400">No politicians found matching your filters.</p>
-      <a href="/politicians" class="inline-block mt-4 text-primary-600 hover:text-primary-700 dark:text-primary-400">Clear filters</a>
-    </div>
-  )}
+  <div id="no-results" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+    <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+    <p class="text-gray-500 dark:text-gray-400">No politicians found matching your filters.</p>
+    <button type="button" id="clear-btn-empty" class="inline-block mt-4 text-primary-600 hover:text-primary-700 dark:text-primary-400">Clear filters</button>
+  </div>
 
   <!-- Data Source -->
   <div class="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -283,9 +265,72 @@ function getChamberBadge(chamber: string): { icon: string; label: string; class:
   </div>
 </DashboardLayout>
 
-<style>
-  /* Force dark mode text colors for this page */
-  :global(html.dark) .text-gray-900 {
-    color: #ffffff !important;
-  }
-</style>
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('q');
+    const chamberSelect = document.getElementById('chamber');
+    const partySelect = document.getElementById('party');
+    const filterBtn = document.getElementById('filter-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const clearBtnEmpty = document.getElementById('clear-btn-empty');
+    const filterInfo = document.getElementById('filter-info');
+    const showingCount = document.getElementById('showing-count');
+    const noResults = document.getElementById('no-results');
+    const grid = document.getElementById('politicians-grid');
+    const cards = document.querySelectorAll('.politician-card');
+    const totalCount = cards.length;
+
+    function applyFilters() {
+      const q = searchInput.value.toLowerCase().trim();
+      const chamber = chamberSelect.value;
+      const party = partySelect.value;
+      
+      let visibleCount = 0;
+      
+      cards.forEach(card => {
+        const cardChamber = card.dataset.chamber;
+        const cardParty = card.dataset.party;
+        const cardName = card.dataset.name;
+        const cardDistrict = card.dataset.district;
+        
+        let show = true;
+        
+        if (chamber && cardChamber !== chamber) show = false;
+        if (party && cardParty !== party) show = false;
+        if (q && !cardName.includes(q) && !cardDistrict.includes(q)) show = false;
+        
+        card.style.display = show ? '' : 'none';
+        if (show) visibleCount++;
+      });
+      
+      // Update UI
+      const hasFilters = q || chamber || party;
+      filterInfo.classList.toggle('hidden', !hasFilters);
+      showingCount.textContent = visibleCount;
+      
+      noResults.classList.toggle('hidden', visibleCount > 0);
+      grid.classList.toggle('hidden', visibleCount === 0);
+    }
+    
+    function clearFilters() {
+      searchInput.value = '';
+      chamberSelect.value = '';
+      partySelect.value = '';
+      applyFilters();
+    }
+    
+    // Event listeners
+    filterBtn.addEventListener('click', applyFilters);
+    clearBtn.addEventListener('click', clearFilters);
+    clearBtnEmpty.addEventListener('click', clearFilters);
+    
+    // Also filter on Enter key in search
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') applyFilters();
+    });
+    
+    // Filter on select change for better UX
+    chamberSelect.addEventListener('change', applyFilters);
+    partySelect.addEventListener('change', applyFilters);
+  });
+</script>

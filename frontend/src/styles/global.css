@@ -278,57 +278,72 @@
    Must be at the END of the file to override Tailwind utilities
    ============================================================================= */
 
-/* Force ALL text in dark mode tables to be light */
-html.dark table tbody tr td {
+/* NUCLEAR OPTION: Force ALL text in dark mode tables to be light colored */
+html.dark table tbody td {
   color: #d1d5db !important; /* gray-300 */
 }
 
-html.dark table tbody tr td div,
-html.dark table tbody tr td span,
-html.dark table tbody tr td p {
+html.dark table tbody td * {
   color: inherit !important;
 }
 
 /* Bold/medium text should be white */
-html.dark table tbody tr td .font-medium,
-html.dark table tbody tr td .font-semibold,
-html.dark table tbody tr td .font-bold,
-html.dark table tbody tr td div.font-medium {
+html.dark table tbody td .font-medium,
+html.dark table tbody td .font-semibold,
+html.dark table tbody td .font-bold,
+html.dark table tbody td div.font-medium,
+html.dark table tbody td div[class*="font-medium"] {
   color: #ffffff !important;
 }
 
 /* Keep green amounts green */
-html.dark table tbody tr td .text-green-600,
-html.dark table tbody tr td .text-green-400 {
+html.dark table tbody td .text-green-600,
+html.dark table tbody td .text-green-400,
+html.dark table tbody td [class*="text-green"] {
   color: #4ade80 !important;
 }
 
-/* Muted text */
-html.dark table tbody tr td .text-gray-500,
-html.dark table tbody tr td .text-gray-400,
-html.dark table tbody tr td .text-xs {
+/* Muted text stays muted */
+html.dark table tbody td .text-gray-500,
+html.dark table tbody td .text-gray-400,
+html.dark table tbody td .text-xs:not(.font-medium):not(.font-semibold) {
   color: #9ca3af !important;
 }
 
-/* Apply to any element with dark bg */
-html.dark .bg-gray-800 .font-medium,
-html.dark .dark\:bg-gray-800 .font-medium {
+/* Cards and containers with dark bg */
+html.dark .bg-gray-800 .text-gray-900,
+html.dark [class*="dark:bg-gray-800"] .text-gray-900,
+html.dark [class*="dark:bg-gray-700"] .text-gray-900 {
   color: #ffffff !important;
 }
 
-html.dark .bg-gray-800 .text-gray-900 {
+html.dark .bg-gray-800 .font-medium,
+html.dark [class*="dark:bg-gray-800"] .font-medium {
   color: #ffffff !important;
 }
 
 /* Chip text colors - prevent override */
+html.dark [class*="chip-"],
+html.dark .chip {
+  color: inherit !important;
+}
+
 html.dark .chip-status-unknown {
-  color: #9ca3af !important; /* gray-400 */
+  color: #9ca3af !important;
 }
 
 html.dark .chip-status-active {
-  color: #4ade80 !important; /* green-400 */
+  color: #4ade80 !important;
 }
 
 html.dark .chip-status-inactive {
-  color: #f87171 !important; /* red-400 */
+  color: #f87171 !important;
+}
+
+/* Override any inline black text */
+html.dark [style*="color: black"],
+html.dark [style*="color:black"],
+html.dark [style*="color: #000"],
+html.dark [style*="color:#000"] {
+  color: #d1d5db !important;
 }
