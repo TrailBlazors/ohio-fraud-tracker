@@ -2,8 +2,10 @@
 Statistics and dashboard endpoints
 """
 
+import json
 import time
 from typing import Any
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -34,14 +36,213 @@ def set_cached(key: str, value: Any):
     _cache[key] = (time.time(), value)
 
 
+# =============================================================================
+# CACHE WARMING ENDPOINT
+# =============================================================================
+
+@router.get("/stats/cache/warm")
+async def warm_cache(db: Session = Depends(get_db)):
+    """
+    Pre-compute and cache expensive stats.
+    Call this after deployment or via cron to keep the cache warm.
+    """
+    results = {}
+    
+    # 1. Top recipients (most expensive query)
+    try:
+        top_results = db.execute(text("""
+            SELECT 
+                r.id, r.name, r.city, r.state, r.business_status,
+                COUNT(a.id) as award_count,
+                SUM(a.amount) as total_amount
+            FROM recipients r
+            INNER JOIN awards a ON a.recipient_id = r.id
+            GROUP BY r.id
+            ORDER BY total_amount DESC
+            LIMIT 20
+        """)).fetchall()
+        
+        items = []
+        for i, row in enumerate(top_results, 1):
+            items.append({
+                "rank": i,
+                "id": row.id,
+                "name": row.name,
+                "city": row.city,
+                "state": row.state,
+                "business_status": row.business_status,
+                "award_count": row.award_count,
+                "total_amount": float(row.total_amount) if row.total_amount else 0
+            })
+        
+        top_data = {"items": items, "count": len(items)}
+        
+        # Update cache
+        cache_key = "top_recipients_20"
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == cache_key).first()
+        if cached:
+            cached.stat_json = json.dumps(top_data)
+            cached.updated_at = datetime.utcnow()
+        else:
+            db.add(CachedStats(stat_key=cache_key, stat_value=20, stat_json=json.dumps(top_data)))
+        
+        results["top_recipients"] = "cached"
+    except Exception as e:
+        results["top_recipients"] = f"error: {str(e)}"
+    
+    # 2. Quick stats
+    try:
+        totals = db.query(
+            func.count(Award.id).label("total_awards"),
+            func.sum(Award.amount).label("total_amount")
+        ).first()
+        
+        total_recipients = db.query(func.count(Recipient.id)).scalar() or 0
+        total_flagged = db.query(func.count(FraudFlag.id)).filter(FraudFlag.is_resolved == False).scalar() or 0
+        total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
+        
+        # Save individual stats
+        stats_to_cache = [
+            ("total_awards", totals.total_awards or 0),
+            ("total_amount", float(totals.total_amount or 0)),
+            ("total_recipients", total_recipients),
+            ("total_flagged", total_flagged),
+            ("total_flags_ever", total_flags_ever),
+        ]
+        
+        for key, value in stats_to_cache:
+            cached = db.query(CachedStats).filter(CachedStats.stat_key == key).first()
+            if cached:
+                cached.stat_value = value
+                cached.updated_at = datetime.utcnow()
+            else:
+                db.add(CachedStats(stat_key=key, stat_value=value))
+        
+        results["quick_stats"] = "cached"
+    except Exception as e:
+        results["quick_stats"] = f"error: {str(e)}"
+    
+    # 3. Awards by source
+    try:
+        source_query = db.query(
+            Award.source,
+            func.count(Award.id).label("count"),
+            func.sum(Award.amount).label("total")
+        ).group_by(Award.source).all()
+        
+        source_data = {
+            row.source: {"count": row.count, "total": float(row.total or 0)}
+            for row in source_query
+        }
+        
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_source").first()
+        if cached:
+            cached.stat_json = json.dumps(source_data)
+            cached.updated_at = datetime.utcnow()
+        else:
+            db.add(CachedStats(stat_key="awards_by_source", stat_value=len(source_data), stat_json=json.dumps(source_data)))
+        
+        results["awards_by_source"] = "cached"
+    except Exception as e:
+        results["awards_by_source"] = f"error: {str(e)}"
+    
+    # 4. Top agencies
+    try:
+        agency_query = db.query(
+            Agency.id, Agency.code, Agency.name,
+            func.count(Award.id).label("total_awards"),
+            func.sum(Award.amount).label("total_amount")
+        ).join(Award, Award.agency_id == Agency.id)\
+         .group_by(Agency.id)\
+         .order_by(desc("total_amount"))\
+         .limit(10).all()
+        
+        agency_data = [
+            {
+                "id": row.id,
+                "code": row.code,
+                "name": row.name,
+                "total_awards": row.total_awards,
+                "total_amount": float(row.total_amount or 0)
+            }
+            for row in agency_query
+        ]
+        
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == "top_agencies").first()
+        if cached:
+            cached.stat_json = json.dumps(agency_data)
+            cached.updated_at = datetime.utcnow()
+        else:
+            db.add(CachedStats(stat_key="top_agencies", stat_value=len(agency_data), stat_json=json.dumps(agency_data)))
+        
+        results["top_agencies"] = "cached"
+    except Exception as e:
+        results["top_agencies"] = f"error: {str(e)}"
+    
+    try:
+        db.commit()
+        # Clear memory cache so next request gets fresh data
+        _cache.clear()
+    except Exception as e:
+        db.rollback()
+        results["commit"] = f"error: {str(e)}"
+    
+    return {
+        "status": "ok",
+        "cached": results,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/stats/db/optimize")
+async def optimize_database(db: Session = Depends(get_db)):
+    """
+    Add performance indexes and run ANALYZE.
+    Call this once after deployment or after major data imports.
+    """
+    results = {}
+    
+    indexes = [
+        ("ix_awards_recipient_amount", "CREATE INDEX IF NOT EXISTS ix_awards_recipient_amount ON awards(recipient_id, amount)"),
+        ("ix_fraud_flags_unresolved", "CREATE INDEX IF NOT EXISTS ix_fraud_flags_unresolved ON fraud_flags(is_resolved, recipient_id)"),
+        ("ix_fraud_flags_severity", "CREATE INDEX IF NOT EXISTS ix_fraud_flags_severity ON fraud_flags(severity, created_at DESC)"),
+        ("ix_awards_recipient_full", "CREATE INDEX IF NOT EXISTS ix_awards_recipient_full ON awards(recipient_id, id, amount)"),
+        ("ix_awards_agency_amount", "CREATE INDEX IF NOT EXISTS ix_awards_agency_amount ON awards(agency_id, amount)"),
+        ("ix_awards_source_amount", "CREATE INDEX IF NOT EXISTS ix_awards_source_amount ON awards(source, amount)"),
+    ]
+    
+    for name, sql in indexes:
+        try:
+            db.execute(text(sql))
+            db.commit()
+            results[name] = "created"
+        except Exception as e:
+            results[name] = f"error: {str(e)}"
+    
+    # Run ANALYZE
+    try:
+        db.execute(text("ANALYZE"))
+        db.commit()
+        results["analyze"] = "complete"
+    except Exception as e:
+        results["analyze"] = f"error: {str(e)}"
+    
+    return {
+        "status": "ok",
+        "indexes": results,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# =============================================================================
+# QUICK STATS (FAST)
+# =============================================================================
+
 @router.get("/stats/quick")
 async def get_quick_stats(db: Session = Depends(get_db)):
     """
     Fast stats for initial page load - reads from cache table.
-    If cache is empty, falls back to computing (slower).
     """
-    import json
-    
     # Check memory cache first
     cached = get_cached("quick_stats")
     if cached:
@@ -129,8 +330,6 @@ async def get_quick_stats(db: Session = Depends(get_db)):
 @router.get("/stats/top-agencies")
 async def get_top_agencies(db: Session = Depends(get_db)):
     """Top agencies - reads from cache if available."""
-    import json
-    
     cached = get_cached("top_agencies")
     if cached:
         return cached
@@ -204,8 +403,6 @@ async def get_recent_awards(db: Session = Depends(get_db)):
 @router.get("/stats/awards-by-type")
 async def get_awards_by_type(db: Session = Depends(get_db)):
     """Awards by type breakdown - reads from cache if available."""
-    import json
-    
     cached = get_cached("awards_by_type")
     if cached:
         return cached
@@ -234,9 +431,7 @@ async def get_awards_by_type(db: Session = Depends(get_db)):
 
 @router.get("/stats", response_model=DashboardStats)
 async def get_dashboard_stats(db: Session = Depends(get_db)):
-    """
-    Get homepage dashboard statistics
-    """
+    """Get homepage dashboard statistics"""
     # Check cache first
     cached = get_cached("dashboard_stats")
     if cached:
@@ -255,7 +450,7 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
     if total_flags_ever > 0:
         correlation_status = "run"
     elif total_awards > 0:
-        correlation_status = "not_run"  # Has data but no correlation done
+        correlation_status = "not_run"
     else:
         correlation_status = "no_data"
     
@@ -347,16 +542,11 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
 
 @router.get("/stats/agencies")
 async def get_agency_stats(db: Session = Depends(get_db)):
-    """
-    Get all agencies - fast version for dropdowns.
-    Just returns code/name, no expensive award counts.
-    """
-    # Check memory cache first
+    """Get all agencies - fast version for dropdowns."""
     cached = get_cached("agencies_list")
     if cached:
         return cached
     
-    # Fast query - no JOINs, no aggregation
     query = db.query(
         Agency.id,
         Agency.code,
@@ -379,9 +569,7 @@ async def get_agency_stats(db: Session = Depends(get_db)):
 
 @router.get("/stats/by-year")
 async def get_stats_by_year(db: Session = Depends(get_db)):
-    """
-    Get award totals by year
-    """
+    """Get award totals by year"""
     query = db.query(
         func.strftime("%Y", Award.award_date).label("year"),
         func.count(Award.id).label("count"),
@@ -391,23 +579,14 @@ async def get_stats_by_year(db: Session = Depends(get_db)):
      .order_by(desc("year")).all()
     
     return [
-        {
-            "year": row.year,
-            "count": row.count,
-            "total": float(row.total or 0)
-        }
+        {"year": row.year, "count": row.count, "total": float(row.total or 0)}
         for row in query
     ]
 
 
 @router.get("/stats/by-city")
-async def get_stats_by_city(
-    limit: int = 20,
-    db: Session = Depends(get_db)
-):
-    """
-    Get award totals by city
-    """
+async def get_stats_by_city(limit: int = 20, db: Session = Depends(get_db)):
+    """Get award totals by city"""
     query = db.query(
         Recipient.city,
         func.count(Award.id).label("count"),
@@ -419,35 +598,22 @@ async def get_stats_by_city(
      .limit(limit).all()
     
     return [
-        {
-            "city": row.city,
-            "count": row.count,
-            "total": float(row.total or 0)
-        }
+        {"city": row.city, "count": row.count, "total": float(row.total or 0)}
         for row in query
     ]
 
 
 @router.get("/stats/data-coverage")
 async def get_data_coverage(db: Session = Depends(get_db)):
-    """
-    Get data coverage info: year ranges and counts by source
-    """
-    # Check cache first
+    """Get data coverage info: year ranges and counts by source"""
     cached = get_cached("data_coverage")
     if cached:
         return cached
     
-    from sqlalchemy import extract, func, and_
-    
-    # Get year ranges and counts by source
     sources = {}
-    
-    # Get distinct sources
     source_list = db.query(Award.source).distinct().all()
     
     for (source,) in source_list:
-        # Get min/max year and count for this source
         stats = db.query(
             func.min(func.strftime("%Y", Award.award_date)).label("min_year"),
             func.max(func.strftime("%Y", Award.award_date)).label("max_year"),
@@ -476,13 +642,7 @@ async def get_data_coverage(db: Session = Depends(get_db)):
 
 @router.get("/stats/data-status")
 async def get_data_status(db: Session = Depends(get_db)):
-    """
-    Get comprehensive data status for the Data Status page.
-    Uses cached stats for speed - no expensive GROUP BY queries.
-    """
-    import json
-    
-    # Check memory cache first (5 min TTL)
+    """Get comprehensive data status for the Data Status page."""
     cached = get_cached("data_status")
     if cached:
         return cached
@@ -494,7 +654,6 @@ async def get_data_status(db: Session = Depends(get_db)):
         set_cached("data_status", result)
         return result
     
-    # Fallback: Build response from other cached stats (no GROUP BY)
     SOURCE_INFO = {
         "usaspending": {
             "name": "USAspending.gov",
@@ -513,7 +672,6 @@ async def get_data_status(db: Session = Depends(get_db)):
         }
     }
     
-    # Try to get source stats from awards_by_source cache
     source_cache = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_source").first()
     source_data = {}
     if source_cache and source_cache.stat_json:
@@ -530,7 +688,7 @@ async def get_data_status(db: Session = Depends(get_db)):
                 "status": "active",
                 "record_count": source_data[key].get("count", 0),
                 "total_amount": float(source_data[key].get("total", 0)),
-                "date_range": None,  # Skip - requires expensive query
+                "date_range": None,
                 "by_year": [],
                 "by_type": []
             })
@@ -548,7 +706,6 @@ async def get_data_status(db: Session = Depends(get_db)):
                 "by_type": []
             })
     
-    # Get totals from cache
     totals_cache = db.query(CachedStats).filter(
         CachedStats.stat_key.in_([
             "total_awards", "total_amount", "total_recipients",
@@ -557,13 +714,11 @@ async def get_data_status(db: Session = Depends(get_db)):
     ).all()
     totals_dict = {r.stat_key: r.stat_value for r in totals_cache}
     
-    # Get recipients_by_status from cache
     status_cache = db.query(CachedStats).filter(CachedStats.stat_key == "recipients_by_status").first()
     recipients_by_status = []
     if status_cache and status_cache.stat_json:
         recipients_by_status = json.loads(status_cache.stat_json)
     
-    # Fast agency count (small table)
     agency_count = db.query(func.count(Agency.id)).scalar() or 0
     
     total_recipients = int(totals_dict.get("total_recipients", 0))
@@ -595,16 +750,11 @@ async def get_data_status(db: Session = Depends(get_db)):
 
 @router.get("/stats/geo/funding-by-county")
 async def get_funding_by_county(db: Session = Depends(get_db)):
-    """
-    Get total funding aggregated by Ohio county.
-    Uses city-to-county mapping since county isn't always populated.
-    """
-    # Check cache first
+    """Get total funding aggregated by Ohio county."""
     cached = get_cached("funding_by_county")
     if cached:
         return cached
     
-    # Get funding by city (we have good city data)
     city_results = db.execute(text("""
         SELECT 
             UPPER(r.city) as city,
@@ -618,113 +768,39 @@ async def get_funding_by_county(db: Session = Depends(get_db)):
         ORDER BY total_amount DESC
     """)).fetchall()
     
-    # Major Ohio cities to county mapping
     city_to_county = {
         "COLUMBUS": "FRANKLIN", "CLEVELAND": "CUYAHOGA", "CINCINNATI": "HAMILTON",
         "TOLEDO": "LUCAS", "AKRON": "SUMMIT", "DAYTON": "MONTGOMERY",
         "PARMA": "CUYAHOGA", "CANTON": "STARK", "YOUNGSTOWN": "MAHONING",
         "LORAIN": "LORAIN", "HAMILTON": "BUTLER", "SPRINGFIELD": "CLARK",
         "KETTERING": "MONTGOMERY", "ELYRIA": "LORAIN", "LAKEWOOD": "CUYAHOGA",
-        "CUYAHOGA FALLS": "SUMMIT", "MIDDLETOWN": "BUTLER", "EUCLID": "CUYAHOGA",
-        "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
-        "BEAVERCREEK": "GREENE", "CLEVELAND HEIGHTS": "CUYAHOGA", "STRONGSVILLE": "CUYAHOGA",
         "DUBLIN": "FRANKLIN", "FAIRFIELD": "BUTLER", "FINDLAY": "HANCOCK",
-        "WARREN": "TRUMBULL", "LANCASTER": "FAIRFIELD", "LIMA": "ALLEN",
-        "HUBER HEIGHTS": "MONTGOMERY", "WESTERVILLE": "FRANKLIN", "MARION": "MARION",
-        "GROVE CITY": "FRANKLIN", "REYNOLDSBURG": "FRANKLIN", "STOW": "SUMMIT",
-        "DELAWARE": "DELAWARE", "BRUNSWICK": "MEDINA", "UPPER ARLINGTON": "FRANKLIN",
-        "GAHANNA": "FRANKLIN", "WESTLAKE": "CUYAHOGA", "NORTH OLMSTED": "CUYAHOGA",
-        "FAIRBORN": "GREENE", "MASSILLON": "STARK", "MASON": "WARREN",
-        "NORTH RIDGEVILLE": "LORAIN", "BOWLING GREEN": "WOOD", "ZANESVILLE": "MUSKINGUM",
-        "RIVERSIDE": "MONTGOMERY", "TROTWOOD": "MONTGOMERY", "GARFIELD HEIGHTS": "CUYAHOGA",
-        "SHAKER HEIGHTS": "CUYAHOGA", "NORTH ROYALTON": "CUYAHOGA", "SOLON": "CUYAHOGA",
-        "GREEN": "SUMMIT", "BARBERTON": "SUMMIT", "WOOSTER": "WAYNE",
-        "ASHLAND": "ASHLAND", "XENIA": "GREENE", "MEDINA": "MEDINA",
-        "TROY": "MIAMI", "TIFFIN": "SENECA", "FREMONT": "SANDUSKY",
-        "ALLIANCE": "STARK", "SANDUSKY": "ERIE", "CHILLICOTHE": "ROSS",
-        "KENT": "PORTAGE", "SIDNEY": "SHELBY", "PIQUA": "MIAMI",
-        "OXFORD": "BUTLER", "ATHENS": "ATHENS", "PORTSMOUTH": "SCIOTO",
-        "OREGON": "LUCAS", "SYLVANIA": "LUCAS", "PERRYSBURG": "WOOD",
-        "MARYSVILLE": "UNION", "AVON": "LORAIN", "WADSWORTH": "MEDINA",
-        "AVON LAKE": "LORAIN", "HILLIARD": "FRANKLIN", "POWELL": "DELAWARE",
-        "PICKERINGTON": "FAIRFIELD", "HUDSON": "SUMMIT", "AURORA": "PORTAGE",
-        "WILLOUGHBY": "LAKE", "ASHTABULA": "ASHTABULA", "NORWOOD": "HAMILTON",
-        "CENTERVILLE": "MONTGOMERY", "MIAMISBURG": "MONTGOMERY", "DOVER": "TUSCARAWAS",
-        "NEW PHILADELPHIA": "TUSCARAWAS", "CAMBRIDGE": "GUERNSEY", "DEFIANCE": "DEFIANCE",
-        "CIRCLEVILLE": "PICKAWAY", "GREENVILLE": "DARKE", "CELINA": "MERCER",
-        "WASHINGTON COURT HOUSE": "FAYETTE", "BELLEFONTAINE": "LOGAN",
-        "MOUNT VERNON": "KNOX", "COSHOCTON": "COSHOCTON", "MARIETTA": "WASHINGTON",
-        "IRONTON": "LAWRENCE", "GALLIPOLIS": "GALLIA", "JACKSON": "JACKSON",
-        "LOGAN": "HOCKING", "MCARTHUR": "VINTON", "HILLSBORO": "HIGHLAND",
-        "GEORGETOWN": "BROWN", "WEST UNION": "ADAMS", "WAVERLY": "PIKE",
-        "BATAVIA": "CLERMONT", "LEBANON": "WARREN", "WILMINGTON": "CLINTON",
-        "URBANA": "CHAMPAIGN", "LONDON": "MADISON", "KENTON": "HARDIN",
-        "VAN WERT": "VAN WERT", "PAULDING": "PAULDING", "NAPOLEON": "HENRY",
-        "WAUSEON": "FULTON", "BRYAN": "WILLIAMS", "UPPER SANDUSKY": "WYANDOT",
-        "BUCYRUS": "CRAWFORD", "GALION": "CRAWFORD", "SHELBY": "RICHLAND",
-        "NORWALK": "HURON", "PORT CLINTON": "OTTAWA", "CHARDON": "GEAUGA",
-        "PAINESVILLE": "LAKE", "RAVENNA": "PORTAGE", "WARREN": "TRUMBULL",
-        "NILES": "TRUMBULL", "SALEM": "COLUMBIANA", "EAST LIVERPOOL": "COLUMBIANA",
-        "STEUBENVILLE": "JEFFERSON", "CARROLLTON": "CARROLL", "CADIZ": "HARRISON",
-        "LISBON": "COLUMBIANA", "WOODSFIELD": "MONROE", "CALDWELL": "NOBLE",
-        "ST CLAIRSVILLE": "BELMONT", "BARNESVILLE": "BELMONT",
-        "NEW LEXINGTON": "PERRY", "MCCONNELSVILLE": "MORGAN",
-        # Add county seats
-        "MILLERSBURG": "HOLMES", "LOUDONVILLE": "ASHLAND",
+        "WARREN": "TRUMBULL", "LIMA": "ALLEN", "WESTERVILLE": "FRANKLIN",
+        "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
     }
     
-    # Aggregate by county
     county_totals = {}
-    unmapped_cities = []
-    
     for row in city_results:
         city = row[0]
         county = city_to_county.get(city)
-        
         if county:
             if county not in county_totals:
                 county_totals[county] = {
-                    "county": county,
-                    "recipient_count": 0,
-                    "award_count": 0,
-                    "total_amount": 0,
-                    "cities": []
+                    "county": county, "recipient_count": 0,
+                    "award_count": 0, "total_amount": 0, "cities": []
                 }
             county_totals[county]["recipient_count"] += row[1]
             county_totals[county]["award_count"] += row[2]
             county_totals[county]["total_amount"] += float(row[3])
             if float(row[3]) > 0:
                 county_totals[county]["cities"].append({
-                    "city": city.title(),
-                    "amount": float(row[3])
-                })
-        else:
-            if float(row[3]) > 100000:  # Only track significant unmapped cities
-                unmapped_cities.append({
-                    "city": city,
-                    "amount": float(row[3])
+                    "city": city.title(), "amount": float(row[3])
                 })
     
-    # Convert to sorted list
-    counties = sorted(
-        county_totals.values(),
-        key=lambda x: x["total_amount"],
-        reverse=True
-    )
-    
-    # Limit cities per county for response size
+    counties = sorted(county_totals.values(), key=lambda x: x["total_amount"], reverse=True)
     for county in counties:
-        county["cities"] = sorted(
-            county["cities"],
-            key=lambda x: x["amount"],
-            reverse=True
-        )[:5]
+        county["cities"] = sorted(county["cities"], key=lambda x: x["amount"], reverse=True)[:5]
     
-    result = {
-        "counties": counties,
-        "total_counties": len(counties),
-        "unmapped_cities": unmapped_cities[:10]  # Top unmapped for debugging
-    }
-    
-    set_cached("funding_by_county", result)  # Cache for 5 min (default)
+    result = {"counties": counties, "total_counties": len(counties)}
+    set_cached("funding_by_county", result)
     return result
