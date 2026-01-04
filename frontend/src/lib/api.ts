@@ -2,8 +2,9 @@
  * API client for Ohio Fraud Tracker backend
  */
 
-// API URL: Use PUBLIC_API_URL env var, fallback to localhost for dev
-const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+// API URL: In production (same-origin), use empty string for relative URLs
+// In development, set PUBLIC_API_URL=http://localhost:8000
+const API_URL = import.meta.env.PUBLIC_API_URL ?? '';
 
 export interface Award {
   id: number;
