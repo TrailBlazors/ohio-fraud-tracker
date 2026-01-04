@@ -64,6 +64,4 @@ Thumbs.db
 # Node (for Astro frontend)
 node_modules/
 .astro/
-frontend/.vercel/
 frontend/dist/
-.vercel/

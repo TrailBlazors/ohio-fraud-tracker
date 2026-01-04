@@ -2,9 +2,8 @@
  * API client for Ohio Fraud Tracker backend
  */
 
-// In production (Vercel), API is on same domain so use relative path
-// In development, use localhost:8000
-const API_URL = import.meta.env.PUBLIC_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '');
+// API URL: Use PUBLIC_API_URL env var, fallback to localhost for dev
+const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface Award {
   id: number;
