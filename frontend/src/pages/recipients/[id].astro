@@ -1,170 +1,211 @@
 ---
+// This page handles recipient details client-side
+// The ID is parsed from the URL in JavaScript
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
-import { getRecipient, getRecipientAwards, formatCurrency, formatDate, getAwardTypeName, getAwardTypeBadgeClass, formatNumber } from '../../lib/api';
 
-const { id } = Astro.params;
-
-let recipient = null;
-let awards = null;
-let error = null;
-
-try {
-  [recipient, awards] = await Promise.all([
-    getRecipient(Number(id)),
-    getRecipientAwards(Number(id), { page_size: 50 }),
-  ]);
-} catch (e) {
-  error = `Unable to load recipient. ${e.message || 'Make sure the API is running.'}`;
+// Export getStaticPaths returning empty array for static build
+export function getStaticPaths() {
+  return [];
 }
 ---
 
-<DashboardLayout title={recipient?.name || 'Recipient Details'}>
-  {error && (
-    <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
-      <span class="font-medium">Error:</span> {error}
-    </div>
-  )}
-
-  {recipient && (
-    <>
-      <!-- Header -->
+<DashboardLayout title="Recipient Details">
+  <div id="recipient-content">
+    <!-- Loading state -->
+    <div id="loading-state" class="animate-pulse">
       <div class="mb-6">
-        <a href="/recipients" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 mb-2 inline-flex items-center">
-          <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"></path>
-          </svg>
-          Back to Recipients
-        </a>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-2">{recipient.name}</h1>
-        <p class="text-gray-500 dark:text-gray-400">
-          {recipient.city ? `${recipient.city}, ` : ''}{recipient.state}
-          {recipient.zip_code && ` ${recipient.zip_code}`}
-        </p>
+        <div class="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+        <div class="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+        <div class="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded"></div>
       </div>
-
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
-          <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Funding</p>
-          <p class="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400 mt-2">
-            ${formatNumber(recipient.total_amount)}
-          </p>
-        </div>
-        
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
-          <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Awards</p>
-          <p class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-2">
-            {recipient.total_awards}
-          </p>
-        </div>
-        
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6">
-          <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Business Status</p>
-          <p class="mt-2">
-            <span class={`badge text-base sm:text-lg px-3 py-1 ${recipient.business_status === 'active' ? 'badge-success' : recipient.business_status === 'unknown' ? 'badge-warning' : 'badge-danger'}`}>
-              {recipient.business_status}
-            </span>
-          </p>
-        </div>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        {[1, 2, 3].map(() => (
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <div class="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2"></div>
+            <div class="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          </div>
+        ))}
       </div>
-
-      <!-- Awards Table -->
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-        <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Awards History</h3>
-        </div>
-        
-        <!-- Mobile Card View -->
-        <div class="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-          {awards?.items.map((award) => (
-            <div class="p-4">
-              <div class="flex justify-between items-start mb-2">
-                <span class={`badge ${getAwardTypeBadgeClass(award.award_type)}`}>
-                  {getAwardTypeName(award.award_type)}
-                </span>
-                <span class="font-semibold text-green-600 dark:text-green-400">
-                  {formatCurrency(award.amount)}
-                </span>
-              </div>
-              <p class="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 mb-2">
-                {award.description || 'No description'}
-              </p>
-              <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span>{award.agency_code || '—'}</span>
-                <span>{formatDate(award.award_date)}</span>
-              </div>
-            </div>
+      
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div class="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
+        <div class="space-y-3">
+          {[1, 2, 3, 4, 5].map(() => (
+            <div class="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
           ))}
-          {(!awards || awards.items.length === 0) && (
-            <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-              No awards found for this recipient
-            </div>
-          )}
         </div>
+      </div>
+    </div>
+    
+    <!-- Error state (hidden by default) -->
+    <div id="error-state" class="hidden">
+      <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+        <span class="font-medium">Error:</span> <span id="error-message">Unable to load recipient.</span>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+        <p class="text-gray-500 dark:text-gray-400">Recipient not found</p>
+        <a href="/recipients" class="mt-4 inline-block text-primary-600 hover:text-primary-700 dark:text-primary-400">
+          ← Back to Recipients
+        </a>
+      </div>
+    </div>
+    
+    <!-- Content (hidden by default, populated by JS) -->
+    <div id="recipient-data" class="hidden"></div>
+  </div>
+
+  <script is:inline>
+    // Get recipient ID from URL
+    const pathParts = window.location.pathname.split('/');
+    const recipientId = pathParts[pathParts.length - 1];
+    
+    // Format helpers
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(amount);
+    }
+    
+    function formatNumber(num) {
+      if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
+      if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+      if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+      return num.toLocaleString();
+    }
+    
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    }
+    
+    function getAwardTypeName(type) {
+      const names = {
+        block_grant: 'Block Grant', formula_grant: 'Formula Grant', project_grant: 'Project Grant',
+        cooperative_agreement: 'Cooperative', direct_loan: 'Direct Loan', guaranteed_loan: 'Guaranteed Loan',
+        direct_payment: 'Direct Payment', insurance: 'Insurance', contract: 'Contract', other: 'Other'
+      };
+      return names[type] || type;
+    }
+    
+    function getBadgeClass(type) {
+      if (type.includes('grant')) return 'badge-success';
+      if (type.includes('loan')) return 'badge-info';
+      if (type.includes('contract')) return 'badge-warning';
+      return 'badge-info';
+    }
+    
+    async function loadRecipient() {
+      try {
+        const [recipientRes, awardsRes] = await Promise.all([
+          fetch(`/api/recipients/${recipientId}`),
+          fetch(`/api/recipients/${recipientId}/awards?page_size=50`)
+        ]);
         
-        <!-- Desktop Table View -->
-        <div class="hidden sm:block overflow-x-auto">
-          <table class="w-full text-sm text-left">
-            <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
-              <tr class="text-gray-600 dark:text-gray-300">
-                <th class="px-4 py-3">Agency</th>
-                <th class="px-4 py-3">Type</th>
-                <th class="px-4 py-3">Description</th>
-                <th class="px-4 py-3 text-right">Amount</th>
-                <th class="px-4 py-3 text-right">Date</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-              {awards?.items.map((award) => (
-                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td class="px-4 py-3">
-                    <span class="font-medium text-gray-900 dark:text-white">{award.agency_code || '—'}</span>
-                  </td>
-                  <td class="px-4 py-3">
-                    <span class={`badge ${getAwardTypeBadgeClass(award.award_type)}`}>
-                      {getAwardTypeName(award.award_type)}
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 max-w-md">
-                    <p class="text-gray-600 dark:text-gray-300 truncate" title={award.description || ''}>
-                      {award.description?.substring(0, 80) || 'No description'}{award.description && award.description.length > 80 ? '...' : ''}
-                    </p>
-                  </td>
-                  <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
-                    {formatCurrency(award.amount)}
-                  </td>
-                  <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                    {formatDate(award.award_date)}
-                  </td>
-                </tr>
-              ))}
-              {(!awards || awards.items.length === 0) && (
-                <tr>
-                  <td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">
-                    No awards found for this recipient
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {awards && awards.total_count > 50 && (
-          <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              Showing 50 of {awards.total_count} awards
+        if (!recipientRes.ok) throw new Error('Recipient not found');
+        
+        const recipient = await recipientRes.json();
+        const awards = await awardsRes.json();
+        
+        // Hide loading, show content
+        document.getElementById('loading-state').classList.add('hidden');
+        
+        const contentDiv = document.getElementById('recipient-data');
+        contentDiv.classList.remove('hidden');
+        
+        // Update page title
+        document.title = `${recipient.name} - Ohio Fraud Tracker`;
+        
+        // Render content
+        contentDiv.innerHTML = `
+          <div class="mb-6">
+            <a href="/recipients" class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 mb-2 inline-flex items-center">
+              <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"></path>
+              </svg>
+              Back to Recipients
+            </a>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-2">${recipient.name}</h1>
+            <p class="text-gray-500 dark:text-gray-400">
+              ${recipient.city ? `${recipient.city}, ` : ''}${recipient.state}
+              ${recipient.zip_code ? ` ${recipient.zip_code}` : ''}
             </p>
           </div>
-        )}
-      </div>
-    </>
-  )}
-
-  {!recipient && !error && (
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
-      <p class="text-gray-500 dark:text-gray-400">Recipient not found</p>
-      <a href="/recipients" class="mt-4 inline-block text-primary-600 hover:text-primary-700 dark:text-primary-400">
-        ← Back to Recipients
-      </a>
-    </div>
-  )}
+          
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Funding</p>
+              <p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-2">$${formatNumber(recipient.total_amount)}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Awards</p>
+              <p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">${recipient.total_awards}</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Business Status</p>
+              <p class="mt-2">
+                <span class="badge text-lg px-3 py-1 ${recipient.business_status === 'active' ? 'badge-success' : recipient.business_status === 'unknown' ? 'badge-warning' : 'badge-danger'}">
+                  ${recipient.business_status}
+                </span>
+              </p>
+            </div>
+          </div>
+          
+          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Awards History</h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+                  <tr class="text-gray-600 dark:text-gray-300">
+                    <th class="px-4 py-3">Agency</th>
+                    <th class="px-4 py-3">Type</th>
+                    <th class="px-4 py-3">Description</th>
+                    <th class="px-4 py-3 text-right">Amount</th>
+                    <th class="px-4 py-3 text-right">Date</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                  ${awards.items.length > 0 ? awards.items.map(award => `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${award.agency_code || '—'}</td>
+                      <td class="px-4 py-3">
+                        <span class="badge ${getBadgeClass(award.award_type)}">${getAwardTypeName(award.award_type)}</span>
+                      </td>
+                      <td class="px-4 py-3 max-w-md text-gray-600 dark:text-gray-300 truncate">
+                        ${award.description ? award.description.substring(0, 80) : 'No description'}${award.description && award.description.length > 80 ? '...' : ''}
+                      </td>
+                      <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">${formatCurrency(award.amount)}</td>
+                      <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">${formatDate(award.award_date)}</td>
+                    </tr>
+                  `).join('') : `
+                    <tr>
+                      <td colspan="5" class="text-center py-8 text-gray-500 dark:text-gray-400">No awards found</td>
+                    </tr>
+                  `}
+                </tbody>
+              </table>
+            </div>
+            ${awards.total_count > 50 ? `
+              <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
+                <p class="text-sm text-gray-500 dark:text-gray-400">Showing 50 of ${awards.total_count} awards</p>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('error-state').classList.remove('hidden');
+        document.getElementById('error-message').textContent = err.message || 'Unable to load recipient.';
+      }
+    }
+    
+    loadRecipient();
+  </script>
 </DashboardLayout>
