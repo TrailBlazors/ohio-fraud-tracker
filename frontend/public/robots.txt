@@ -1,0 +1,24 @@
+# Ohio Fraud Tracker - Robots.txt
+# https://ohiofraudtracker.org
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://ohiofraudtracker.org/sitemap.xml
+
+# Allow all search engine crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# Block API endpoints from being indexed (they're data, not pages)
+Disallow: /api/
+Disallow: /docs
+Disallow: /redoc
+Disallow: /openapi.json

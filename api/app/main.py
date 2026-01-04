@@ -121,6 +121,28 @@ async def page_search():
     return serve_page("search")
 
 
+@app.get("/robots.txt")
+async def robots_txt():
+    """Serve robots.txt for search engines"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    robots_path = STATIC_DIR / "robots.txt"
+    if robots_path.is_file():
+        return FileResponse(robots_path, media_type="text/plain")
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+@app.get("/sitemap.xml")
+async def sitemap_xml():
+    """Serve sitemap.xml for search engines"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    sitemap_path = STATIC_DIR / "sitemap.xml"
+    if sitemap_path.is_file():
+        return FileResponse(sitemap_path, media_type="application/xml")
+    raise HTTPException(status_code=404, detail="Not found")
+
+
 @app.get("/red-flags")
 async def page_red_flags():
     """Serve red-flags index page"""

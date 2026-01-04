@@ -2,10 +2,20 @@
 export interface Props {
   title: string;
   description?: string;
+  keywords?: string;
+  ogImage?: string;
 }
 
-const { title, description = "Track federal grants, loans, and contracts in Ohio" } = Astro.props;
+const { 
+  title, 
+  description = "Track billions in federal grants, loans, and contracts flowing into Ohio. A free transparency tool helping taxpayers identify potential fraud, waste, and abuse of public funds.",
+  keywords = "Ohio fraud, government grants Ohio, federal funding Ohio, PPP loan fraud Ohio, government waste, taxpayer transparency, Ohio contracts, USAspending Ohio, government accountability",
+  ogImage = "/og-image.png"
+} = Astro.props;
+
 const currentPath = Astro.url.pathname;
+const canonicalURL = new URL(currentPath, "https://ohiofraudtracker.org").toString();
+const fullTitle = title === "Dashboard" ? "Ohio Fraud Tracker - Track Federal Grants & Government Spending in Ohio" : `${title} | Ohio Fraud Tracker`;
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: "chart-pie" },
@@ -26,15 +36,36 @@ const redFlagsItems = [
 // Check if current path is in red flags section
 const isRedFlagsSection = Astro.url.pathname.startsWith('/red-flags') || Astro.url.pathname === '/flagged';
 
-// Data coverage will be loaded client-side to avoid blocking page render
-// See script at bottom of file
-let dataCoverage: { sources: Record<string, any> } = { sources: {} };
-
 // Helper to format source info
 function getSourceInfo(sourceKey: string) {
-  // This will be populated client-side
   return null;
 }
+
+// Structured data for the organization
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Ohio Fraud Tracker",
+  "alternateName": "OFT",
+  "url": "https://ohiofraudtracker.org",
+  "description": "A free transparency tool tracking federal grants, loans, and contracts in Ohio to help taxpayers identify potential fraud and waste.",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "https://ohiofraudtracker.org/search?q={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Ohio Fraud Tracker",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ohiofraudtracker.org/favicon.svg"
+    }
+  }
+};
 ---
 
 <!DOCTYPE html>
@@ -42,10 +73,46 @@ function getSourceInfo(sourceKey: string) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <!-- Primary Meta Tags -->
+  <title>{fullTitle}</title>
+  <meta name="title" content={fullTitle} />
   <meta name="description" content={description} />
+  <meta name="keywords" content={keywords} />
+  <meta name="author" content="Ohio Fraud Tracker" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href={canonicalURL} />
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content={canonicalURL} />
+  <meta property="og:title" content={fullTitle} />
+  <meta property="og:description" content={description} />
+  <meta property="og:image" content="https://ohiofraudtracker.org/og-image.png" />
+  <meta property="og:site_name" content="Ohio Fraud Tracker" />
+  <meta property="og:locale" content="en_US" />
+  
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content={canonicalURL} />
+  <meta property="twitter:title" content={fullTitle} />
+  <meta property="twitter:description" content={description} />
+  <meta property="twitter:image" content="https://ohiofraudtracker.org/og-image.png" />
+  
+  <!-- Geo Tags for Ohio -->
+  <meta name="geo.region" content="US-OH" />
+  <meta name="geo.placename" content="Ohio" />
+  
+  <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  
+  <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <title>{title} | Ohio Fraud Tracker</title>
+  
+  <!-- Structured Data -->
+  <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+  
   <style>
     /* Force dark mode table text colors - aggressive override */
     html.dark table tbody td {
@@ -102,27 +169,21 @@ function getSourceInfo(sourceKey: string) {
           </button>
           <a href="/" class="flex ms-2 md:me-24 items-center gap-3">
             <!-- Ohio flag (burgee/swallowtail shape) -->
-            <svg class="w-12 h-7" viewBox="0 0 143 95" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <!-- Define the swallowtail clip path -->
+            <svg class="w-12 h-7" viewBox="0 0 143 95" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Ohio Flag">
               <defs>
                 <clipPath id="swallowtail">
                   <polygon points="0,0 105,0 143,47.5 105,95 0,95"/>
                 </clipPath>
               </defs>
               <g clip-path="url(#swallowtail)">
-                <!-- 5 horizontal stripes: red, white, red, white, red -->
                 <rect x="0" y="0" width="143" height="19" fill="#CE1126"/>
                 <rect x="0" y="19" width="143" height="19" fill="white"/>
                 <rect x="0" y="38" width="143" height="19" fill="#CE1126"/>
                 <rect x="0" y="57" width="143" height="19" fill="white"/>
                 <rect x="0" y="76" width="143" height="19" fill="#CE1126"/>
-                <!-- Blue triangle -->
                 <polygon points="0,0 0,95 57,47.5" fill="#002868"/>
-                <!-- White O circle -->
                 <circle cx="23" cy="47.5" r="12" fill="white"/>
-                <!-- Red center of O -->
                 <circle cx="23" cy="47.5" r="5" fill="#CE1126"/>
-                <!-- Stars around the O (13 stars) -->
                 <g fill="white">
                   <polygon points="23,28 24,32 28,32 25,35 26,39 23,37 20,39 21,35 18,32 22,32" transform="scale(0.5) translate(23,28)"/>
                   <circle cx="23" cy="28" r="2"/>
@@ -138,7 +199,6 @@ function getSourceInfo(sourceKey: string) {
                   <circle cx="10" cy="38" r="2"/>
                   <circle cx="15" cy="31" r="2"/>
                 </g>
-                <!-- 4 stars at apex of triangle -->
                 <g fill="white">
                   <circle cx="45" cy="38" r="2"/>
                   <circle cx="50" cy="43" r="2"/>
@@ -150,16 +210,14 @@ function getSourceInfo(sourceKey: string) {
             <span class="self-center text-xl font-semibold sm:text-2xl whitespace-nowrap text-gray-900 dark:text-white">
               Ohio Fraud Tracker
             </span>
-            <!-- Magnifying glass icon -->
-            <svg class="w-8 h-8 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+            <svg class="w-8 h-8 text-primary-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
             </svg>
           </a>
         </div>
         <div class="flex items-center">
           <div class="flex items-center ms-3">
-            <!-- Dark mode toggle -->
-            <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5">
+            <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5" aria-label="Toggle dark mode">
               <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
               </svg>
@@ -181,45 +239,45 @@ function getSourceInfo(sourceKey: string) {
           <li>
             <a href={item.href} class={`flex items-center p-2 rounded-lg group ${currentPath === item.href ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
               {item.icon === 'chart-pie' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"></path>
                   <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"></path>
                 </svg>
               )}
               {item.icon === 'gift' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path fill-rule="evenodd" d="M5 5a3 3 0 015-2.236A3 3 0 0114.83 6H16a2 2 0 110 4h-5V9a1 1 0 10-2 0v1H4a2 2 0 110-4h1.17C5.06 5.687 5 5.35 5 5zm4 1V5a1 1 0 10-1 1h1zm3 0a1 1 0 10-1-1v1h1z" clip-rule="evenodd"></path>
                   <path d="M9 11H3v5a2 2 0 002 2h4v-7zM11 18h4a2 2 0 002-2v-5h-6v7z"></path>
                 </svg>
               )}
               {item.icon === 'currency-dollar' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path>
                 </svg>
               )}
               {item.icon === 'users' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
                 </svg>
               )}
               {item.icon === 'user-group' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
                 </svg>
               )}
               {item.icon === 'flag' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
                 </svg>
               )}
               {item.icon === 'search' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
                 </svg>
               )}
               {item.icon === 'database' && (
-                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"></path>
                   <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"></path>
                   <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"></path>
@@ -233,11 +291,11 @@ function getSourceInfo(sourceKey: string) {
         <!-- Red Flags Section -->
         <li>
           <button type="button" class={`flex items-center w-full p-2 text-base transition duration-75 rounded-lg group ${isRedFlagsSection ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`} aria-controls="dropdown-red-flags" data-collapse-toggle="dropdown-red-flags">
-            <svg class="w-5 h-5 transition duration-75 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+            <svg class="w-5 h-5 transition duration-75 text-red-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
             </svg>
             <span class="flex-1 ms-3 text-left whitespace-nowrap">Red Flags</span>
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 10 6">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 10 6" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
             </svg>
           </button>
@@ -246,12 +304,12 @@ function getSourceInfo(sourceKey: string) {
               <li>
                 <a href={item.href} class={`flex items-center w-full p-2 pl-11 transition duration-75 rounded-lg group ${currentPath === item.href ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                   {item.icon === 'flag' && (
-                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                       <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
                     </svg>
                   )}
                   {item.icon === 'trophy' && (
-                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                       <path fill-rule="evenodd" d="M5 5a3 3 0 013-3h4a3 3 0 013 3v1h1a2 2 0 012 2v1a5 5 0 01-5 5h-1v2h1a1 1 0 110 2H7a1 1 0 110-2h1v-2H7a5 5 0 01-5-5V8a2 2 0 012-2h1V5zm8 0H7v1h6V5zM4 8v1a3 3 0 003 3h6a3 3 0 003-3V8H4z" clip-rule="evenodd"></path>
                     </svg>
                   )}
@@ -272,14 +330,11 @@ function getSourceInfo(sourceKey: string) {
               <span class="flex items-center">
                 <span class="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
                 USAspending.gov
-                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
                   <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
                 </svg>
               </span>
-              {getSourceInfo('usaspending') && (
-                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{getSourceInfo('usaspending')}</span>
-              )}
             </a>
           </li>
           <li class="px-2 py-1">
@@ -287,25 +342,11 @@ function getSourceInfo(sourceKey: string) {
               <span class="flex items-center">
                 <span class="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
                 SBA PPP Loans
-                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
                   <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
                 </svg>
               </span>
-              {getSourceInfo('sba_ppp') && (
-                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{getSourceInfo('sba_ppp')}</span>
-              )}
-            </a>
-          </li>
-          <li class="px-2 py-1">
-            <a href="https://www.ohiosos.gov/businesses/" target="_blank" rel="noopener noreferrer" class="flex items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
-              <span class="w-2 h-2 bg-yellow-500 rounded-full mr-2 flex-shrink-0"></span>
-              Ohio SOS
-              <span class="text-xs text-gray-400 ml-1">(coming)</span>
-              <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
-                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
-              </svg>
             </a>
           </li>
           <li class="px-2 py-1">
@@ -313,18 +354,16 @@ function getSourceInfo(sourceKey: string) {
               <span class="flex items-center">
                 <span class="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
                 Ohio Checkbook
-                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-3 h-3 ml-1 opacity-50 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"></path>
                   <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"></path>
                 </svg>
               </span>
-              {getSourceInfo('ohio_checkbook') && (
-                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{getSourceInfo('ohio_checkbook')}</span>
-              )}
             </a>
           </li>
         </ul>
       </div>
+      
       <!-- Feedback section -->
       <div class="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
         <div class="px-2 py-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
@@ -336,7 +375,7 @@ function getSourceInfo(sourceKey: string) {
             Help us improve! Send feedback, report bugs, or suggest features.
           </p>
           <a href="mailto:support@ohiofraudtracker.org" class="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
             </svg>
             support@ohiofraudtracker.org
@@ -352,7 +391,7 @@ function getSourceInfo(sourceKey: string) {
            class="block px-3 py-3 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 group">
           <div class="flex items-center gap-3">
             <div class="flex-shrink-0 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-inner">
-              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <path d="M4 19V8.5C4 7.67 4.67 7 5.5 7H16.5C17.33 7 18 7.67 18 8.5V9H19C20.1 9 21 9.9 21 11V13C21 14.1 20.1 15 19 15H18V15.5C18 16.33 17.33 17 16.5 17H14" stroke="#78350f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M18 9V15" stroke="#78350f" stroke-width="1.5"/>
                 <path d="M7 7V5C7 4.45 7.45 4 8 4H14C14.55 4 15 4.45 15 5V7" stroke="#78350f" stroke-width="1.5" stroke-linecap="round"/>
@@ -365,7 +404,7 @@ function getSourceInfo(sourceKey: string) {
               <p class="text-sm font-bold text-amber-900">Support This Project</p>
               <p class="text-xs text-amber-800/80">Buy me a coffee ☕</p>
             </div>
-            <svg class="w-5 h-5 text-amber-900/70 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-amber-900/70 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </div>
@@ -378,21 +417,19 @@ function getSourceInfo(sourceKey: string) {
   </aside>
 
   <!-- Main content -->
-  <div class="p-3 sm:p-4 sm:ml-64">
+  <main class="p-3 sm:p-4 sm:ml-64">
     <div class="p-2 sm:p-4 mt-14">
       <slot />
       
       <!-- Footer -->
       <footer class="mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 text-sm text-gray-500 dark:text-gray-400">
-          <!-- About -->
           <div>
             <p class="font-medium text-gray-700 dark:text-gray-300">Ohio Fraud Tracker</p>
             <p class="text-xs mt-1">A transparency tool for Ohio taxpayers</p>
             <p class="text-xs mt-1">Data from USAspending.gov, SBA, Ohio Checkbook</p>
           </div>
           
-          <!-- Newsletter Signup -->
           <div>
             <p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Stay Updated</p>
             <form
@@ -408,6 +445,7 @@ function getSourceInfo(sourceKey: string) {
                 placeholder="your@email.com"
                 required
                 class="flex-1 px-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-primary-500 focus:border-primary-500 dark:text-white"
+                aria-label="Email address"
               />
               <button
                 type="submit"
@@ -419,16 +457,15 @@ function getSourceInfo(sourceKey: string) {
             <p class="text-xs mt-1 text-gray-400">Get notified about new features & data updates</p>
           </div>
           
-          <!-- Links -->
           <div class="flex flex-wrap items-center gap-4 md:justify-end">
             <a href="mailto:support@ohiofraudtracker.org" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
               </svg>
               Feedback
             </a>
             <a href="/data-status" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
               </svg>
               Data Status
@@ -437,7 +474,7 @@ function getSourceInfo(sourceKey: string) {
                target="_blank" 
                rel="noopener noreferrer"
                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-amber-900 rounded-full text-xs font-bold transition-all shadow hover:shadow-md">
-              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <path d="M4 19V8.5C4 7.67 4.67 7 5.5 7H16.5C17.33 7 18 7.67 18 8.5V9H19C20.1 9 21 9.9 21 11V13C21 14.1 20.1 15 19 15H18V15.5C18 16.33 17.33 17 16.5 17H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="M18 9V15" stroke="currentColor" stroke-width="1.5"/>
               </svg>
@@ -447,17 +484,14 @@ function getSourceInfo(sourceKey: string) {
         </div>
       </footer>
     </div>
-  </div>
+  </main>
 
-  <!-- Scripts -->
   <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js"></script>
   <script is:inline>
-    // Dark mode toggle
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
     const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
 
-    // Set initial icon based on current theme
     if (document.documentElement.classList.contains('dark')) {
       themeToggleLightIcon.classList.remove('hidden');
     } else {

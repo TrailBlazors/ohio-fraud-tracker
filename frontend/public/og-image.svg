@@ -1,0 +1,63 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <rect width="1200" height="630" fill="#0f172a"/>
+  <rect width="1200" height="630" fill="url(#gradient)" opacity="0.5"/>
+  
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="1200" y2="630">
+      <stop offset="0%" stop-color="#1e40af"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Ohio Flag simplified -->
+  <g transform="translate(100, 200)">
+    <clipPath id="flag-clip">
+      <polygon points="0,0 150,0 200,75 150,150 0,150"/>
+    </clipPath>
+    <g clip-path="url(#flag-clip)">
+      <rect x="0" y="0" width="200" height="30" fill="#CE1126"/>
+      <rect x="0" y="30" width="200" height="30" fill="white"/>
+      <rect x="0" y="60" width="200" height="30" fill="#CE1126"/>
+      <rect x="0" y="90" width="200" height="30" fill="white"/>
+      <rect x="0" y="120" width="200" height="30" fill="#CE1126"/>
+      <polygon points="0,0 0,150 80,75" fill="#002868"/>
+      <circle cx="32" cy="75" r="18" fill="white"/>
+      <circle cx="32" cy="75" r="8" fill="#CE1126"/>
+    </g>
+  </g>
+  
+  <!-- Title -->
+  <text x="340" y="260" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="700" fill="white">
+    Ohio Fraud Tracker
+  </text>
+  
+  <!-- Magnifying glass icon -->
+  <circle cx="1050" cy="230" r="50" stroke="#60a5fa" stroke-width="8" fill="none"/>
+  <line x1="1085" y1="265" x2="1120" y2="300" stroke="#60a5fa" stroke-width="8" stroke-linecap="round"/>
+  
+  <!-- Tagline -->
+  <text x="340" y="340" font-family="Inter, system-ui, sans-serif" font-size="32" fill="#94a3b8">
+    Track Federal Grants, Loans &amp; Contracts in Ohio
+  </text>
+  
+  <!-- Stats boxes -->
+  <g transform="translate(340, 400)">
+    <rect x="0" y="0" width="220" height="100" rx="12" fill="#1e293b"/>
+    <text x="20" y="40" font-family="Inter, system-ui, sans-serif" font-size="18" fill="#94a3b8">Total Tracked</text>
+    <text x="20" y="75" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="#4ade80">$14B+</text>
+    
+    <rect x="250" y="0" width="220" height="100" rx="12" fill="#1e293b"/>
+    <text x="270" y="40" font-family="Inter, system-ui, sans-serif" font-size="18" fill="#94a3b8">Recipients</text>
+    <text x="270" y="75" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="#60a5fa">14,000+</text>
+    
+    <rect x="500" y="0" width="220" height="100" rx="12" fill="#1e293b"/>
+    <text x="520" y="40" font-family="Inter, system-ui, sans-serif" font-size="18" fill="#94a3b8">Data Sources</text>
+    <text x="520" y="75" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="#f59e0b">3+</text>
+  </g>
+  
+  <!-- URL -->
+  <text x="600" y="590" font-family="Inter, system-ui, sans-serif" font-size="24" fill="#64748b" text-anchor="middle">
+    ohiofraudtracker.org
+  </text>
+</svg>
