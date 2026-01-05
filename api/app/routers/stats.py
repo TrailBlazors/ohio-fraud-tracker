@@ -445,9 +445,11 @@ async def get_recent_awards(db: Session = Depends(get_db)):
     if cached:
         return cached
     
+    # Only get awards that have dates
     recent_query = db.query(Award, Recipient, Agency)\
         .join(Recipient, Award.recipient_id == Recipient.id)\
         .outerjoin(Agency, Award.agency_id == Agency.id)\
+        .filter(Award.award_date.isnot(None))\
         .order_by(desc(Award.award_date))\
         .limit(10).all()
     
