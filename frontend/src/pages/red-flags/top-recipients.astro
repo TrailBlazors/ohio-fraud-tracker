@@ -157,7 +157,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             ` : `<span class="text-gray-500 dark:text-gray-400">${recipient.rank}</span>`}
           </td>
           <td class="px-4 py-3">
-            <a href="/recipients/${recipient.id}" class="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+            <a href="/recipients/view?id=${recipient.id}" class="font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
               ${recipient.name}
             </a>
           </td>

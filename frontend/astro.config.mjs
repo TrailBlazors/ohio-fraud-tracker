@@ -7,4 +7,5 @@ export default defineConfig({
   build: {
     assets: '_assets',
   },
+  trailingSlash: 'ignore',
 });
