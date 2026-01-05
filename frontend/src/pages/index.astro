@@ -44,28 +44,6 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
     <span class="font-medium">Error:</span> <span id="error-message"></span>
   </div>
 
-  <!-- Correlation Analysis Prompt (hidden by default) -->
-  <div id="correlation-prompt" class="hidden p-4 mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center">
-        <svg class="w-5 h-5 text-amber-600 dark:text-amber-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-        </svg>
-        <div>
-          <p class="font-medium text-amber-800 dark:text-amber-300">Fraud analysis not yet run</p>
-          <p class="text-sm text-amber-700 dark:text-amber-400">Run correlation analysis to detect potential issues in your data.</p>
-        </div>
-      </div>
-      <button 
-        id="run-correlation-btn"
-        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors"
-      >
-        Run Analysis
-      </button>
-    </div>
-    <div id="correlation-result" class="mt-3 hidden"></div>
-  </div>
-
   <!-- Stats Cards (loading state) -->
   <div id="stats-loading" class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
     <div class="stat-card animate-pulse">
@@ -292,11 +270,6 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
       document.getElementById('stat-total-recipients').textContent = stats.total_recipients.toLocaleString();
       document.getElementById('stat-total-flagged').textContent = stats.total_flagged.toLocaleString();
       
-      // Show correlation prompt if needed
-      if (stats.correlation_status === 'not_run' && stats.total_awards > 0) {
-        document.getElementById('correlation-prompt').classList.remove('hidden');
-      }
-      
       // Show data sources if we have them
       if (stats.awards_by_source && Object.keys(stats.awards_by_source).length > 0) {
         const grid = document.getElementById('data-sources-grid');
@@ -467,56 +440,8 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
     }
   }
   
-  // Correlation button handler
+  // Load all data on page load
   document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('run-correlation-btn');
-    const resultDiv = document.getElementById('correlation-result');
-    
-    if (btn) {
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        btn.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Analyzing...';
-        
-        try {
-          const response = await fetch(`${apiBase}/api/correlation/run`, { method: 'POST' });
-          const result = await response.json();
-          
-          if (result.success) {
-            resultDiv.innerHTML = `
-              <div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                <p class="font-medium">✓ Analysis complete!</p>
-                <p class="text-sm mt-1">Found ${result.flags_found} potential issues. ${result.flags_saved} saved to database.</p>
-                <p class="text-sm mt-2"><a href="/flagged" class="underline">View flagged items →</a></p>
-              </div>
-            `;
-            resultDiv.classList.remove('hidden');
-            setTimeout(() => window.location.reload(), 2000);
-          } else {
-            resultDiv.innerHTML = `
-              <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
-                <p class="font-medium">Error running analysis</p>
-                <p class="text-sm">${result.error || 'Unknown error'}</p>
-              </div>
-            `;
-            resultDiv.classList.remove('hidden');
-            btn.disabled = false;
-            btn.textContent = 'Retry';
-          }
-        } catch (err) {
-          resultDiv.innerHTML = `
-            <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300">
-              <p class="font-medium">Connection error</p>
-              <p class="text-sm">Could not connect to API.</p>
-            </div>
-          `;
-          resultDiv.classList.remove('hidden');
-          btn.disabled = false;
-          btn.textContent = 'Retry';
-        }
-      });
-    }
-    
-    // Load all data
     loadStats();
     loadAwardsByType();
     loadTopAgencies();

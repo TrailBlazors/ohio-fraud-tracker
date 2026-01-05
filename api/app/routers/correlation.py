@@ -79,9 +79,28 @@ class CorrelationEngine:
     def _check_duplicate_awards(self):
         """Find potential duplicate awards (same recipient, similar amount, close dates)"""
         
-        # Find near-duplicates: same recipient, amount within 1%, dates within 30 days
-        # PostgreSQL: DATE - DATE returns integer days directly
+        # More efficient approach: find recipients with multiple awards first,
+        # then check for duplicates within each recipient's awards
+        
+        # Step 1: Find recipients with potential duplicates (same amount, close dates)
+        # This uses a smarter query that doesn't do a full self-join
         query = text("""
+            WITH recipient_candidates AS (
+                -- Find recipients who have multiple awards with similar amounts
+                SELECT DISTINCT a1.recipient_id
+                FROM awards a1
+                WHERE a1.amount > 10000
+                  AND a1.award_date IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1 FROM awards a2
+                    WHERE a2.recipient_id = a1.recipient_id
+                      AND a2.id != a1.id
+                      AND a2.award_date IS NOT NULL
+                      AND ABS(a1.amount - a2.amount) / NULLIF(a1.amount, 0) < 0.01
+                      AND a2.award_date BETWEEN a1.award_date - INTERVAL '30 days' AND a1.award_date + INTERVAL '30 days'
+                  )
+                LIMIT 1000
+            )
             SELECT 
                 a1.id as award1_id,
                 a2.id as award2_id,
@@ -97,16 +116,22 @@ class CorrelationEngine:
             FROM awards a1
             JOIN awards a2 ON a1.recipient_id = a2.recipient_id
                 AND a1.id < a2.id
-            WHERE a1.award_date IS NOT NULL 
+            WHERE a1.recipient_id IN (SELECT recipient_id FROM recipient_candidates)
+                AND a1.award_date IS NOT NULL 
                 AND a2.award_date IS NOT NULL
-                AND a1.amount > 1000
+                AND a1.amount > 10000
                 AND ABS(a1.amount - a2.amount) / NULLIF(a1.amount, 0) < 0.01
-                AND (a1.award_date - a2.award_date) BETWEEN -30 AND 30
+                AND a2.award_date BETWEEN a1.award_date - INTERVAL '30 days' AND a1.award_date + INTERVAL '30 days'
             ORDER BY a1.amount DESC
             LIMIT 500
         """)
         
-        results = self.db.execute(query).fetchall()
+        try:
+            results = self.db.execute(query).fetchall()
+        except Exception as e:
+            print(f"Duplicate query error: {e}")
+            # Fallback to simpler query if the optimized one fails
+            return self._check_duplicate_awards_simple()
         
         seen_pairs = set()
         
@@ -161,6 +186,79 @@ class CorrelationEngine:
                     "date_diff_days": date_diff
                 }
             ))
+    
+    def _check_duplicate_awards_simple(self):
+        """Simpler fallback for duplicate detection - checks top recipients only"""
+        # Get top 100 recipients by award count
+        top_recipients = self.db.query(
+            Award.recipient_id
+        ).group_by(Award.recipient_id).having(
+            func.count(Award.id) >= 5
+        ).order_by(func.sum(Award.amount).desc()).limit(100).all()
+        
+        recipient_ids = [r.recipient_id for r in top_recipients]
+        
+        for recipient_id in recipient_ids:
+            # Get awards for this recipient
+            awards = self.db.query(Award).filter(
+                Award.recipient_id == recipient_id,
+                Award.amount > 10000,
+                Award.award_date.isnot(None)
+            ).order_by(Award.amount.desc()).limit(50).all()
+            
+            # Check pairs within this recipient
+            for i, a1 in enumerate(awards):
+                for a2 in awards[i+1:]:
+                    if a1.amount == 0:
+                        continue
+                    amount_diff_pct = abs(a1.amount - a2.amount) / a1.amount
+                    if amount_diff_pct >= 0.01:
+                        continue
+                    
+                    date_diff = abs((a1.award_date - a2.award_date).days)
+                    if date_diff > 30:
+                        continue
+                    
+                    # Found a duplicate
+                    if amount_diff_pct == 0 and date_diff == 0:
+                        severity = Severity.CRITICAL if a1.amount > 100000 else Severity.HIGH
+                        match_type = "exact"
+                    elif amount_diff_pct < 0.001 and date_diff <= 7:
+                        severity = Severity.HIGH if a1.amount > 50000 else Severity.MEDIUM
+                        match_type = "near_exact"
+                    else:
+                        severity = Severity.MEDIUM if a1.amount > 50000 else Severity.LOW
+                        match_type = "similar"
+                    
+                    self.flags.append(Flag(
+                        flag_type=FlagType.DUPLICATE_AWARD,
+                        severity=severity,
+                        description=f"Potential duplicate: ${a1.amount:,.0f} and ${a2.amount:,.0f} within {date_diff} days",
+                        recipient_id=recipient_id,
+                        award_id=a1.id,
+                        evidence={
+                            "match_type": match_type,
+                            "award1": {
+                                "id": a1.id,
+                                "amount": float(a1.amount),
+                                "date": str(a1.award_date),
+                                "source": a1.source,
+                                "description": (a1.description or "")[:200]
+                            },
+                            "award2": {
+                                "id": a2.id,
+                                "amount": float(a2.amount),
+                                "date": str(a2.award_date),
+                                "source": a2.source,
+                                "description": (a2.description or "")[:200]
+                            },
+                            "amount_diff_pct": round(amount_diff_pct * 100, 2),
+                            "date_diff_days": date_diff
+                        }
+                    ))
+                    
+                    if len(self.flags) >= 500:
+                        return
     
     def _check_outlier_amounts(self):
         """Find awards that are significantly above average for their type"""
