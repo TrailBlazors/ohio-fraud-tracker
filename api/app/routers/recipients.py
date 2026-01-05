@@ -3,7 +3,8 @@ Recipients endpoints - businesses and organizations
 """
 
 import json
-from typing import Optional
+import time
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, asc, or_, and_, literal, text
@@ -16,6 +17,22 @@ from app.schemas import (
 )
 
 router = APIRouter()
+
+# Simple in-memory cache with TTL (same pattern as stats.py)
+_cache: dict[str, tuple[float, Any]] = {}
+CACHE_TTL = 86400  # 24 hours
+
+def get_cached(key: str):
+    """Get value from cache if not expired."""
+    if key in _cache:
+        timestamp, value = _cache[key]
+        if time.time() - timestamp < CACHE_TTL:
+            return value
+    return None
+
+def set_cached(key: str, value: Any):
+    """Store value in cache with current timestamp."""
+    _cache[key] = (time.time(), value)
 
 
 # =============================================================================
@@ -30,26 +47,29 @@ async def get_top_recipients(
 ):
     """
     Get top recipients by total award amount.
-    Uses cached data for fast response, refreshes cache if stale.
+    Uses in-memory cache first, then database cache, then computes.
     """
     
     cache_key = f"top_recipients_{limit}"
     
-    # Try to get cached data first (unless refresh requested)
+    # 1. Check in-memory cache first (fastest)
     if not refresh:
-        cached = db.query(CachedStats).filter(CachedStats.stat_key == cache_key).first()
-        if cached and cached.stat_json:
+        cached = get_cached(cache_key)
+        if cached:
+            return cached
+    
+    # 2. Check database cache (second fastest)
+    if not refresh:
+        db_cached = db.query(CachedStats).filter(CachedStats.stat_key == cache_key).first()
+        if db_cached and db_cached.stat_json:
             try:
-                data = json.loads(cached.stat_json)
-                # Cache is valid for 1 hour
-                from datetime import datetime, timedelta
-                if cached.updated_at and cached.updated_at > datetime.utcnow() - timedelta(hours=1):
-                    return data
+                data = json.loads(db_cached.stat_json)
+                set_cached(cache_key, data)  # Store in memory for next time
+                return data
             except json.JSONDecodeError:
                 pass
     
-    # Cache miss or stale - run the query
-    # Use a simpler, faster query with raw SQL for the heavy aggregation
+    # 3. Cache miss - run the query (slow but necessary)
     results = db.execute(text("""
         SELECT 
             r.id,
@@ -84,7 +104,10 @@ async def get_top_recipients(
         "count": len(items)
     }
     
-    # Update cache
+    # Store in memory cache
+    set_cached(cache_key, response)
+    
+    # Update database cache
     cached = db.query(CachedStats).filter(CachedStats.stat_key == cache_key).first()
     if cached:
         cached.stat_json = json.dumps(response)
