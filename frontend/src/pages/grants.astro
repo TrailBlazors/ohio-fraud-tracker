@@ -130,6 +130,8 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
   let currentPage = 1;
   let sortBy = 'amount';
   let sortOrder = 'desc';
+  let agenciesLoaded = false;
+  let pendingAgencyCode = '';
   
   // Helpers
   function formatCurrency(amount) {
@@ -166,6 +168,13 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
         opt.textContent = `${a.code} - ${a.name}`;
         select.appendChild(opt);
       });
+      agenciesLoaded = true;
+      
+      // If there was a pending agency code, set it now
+      if (pendingAgencyCode) {
+        select.value = pendingAgencyCode;
+        pendingAgencyCode = '';
+      }
     } catch (e) { console.error('Failed to load agencies', e); }
   }
   
@@ -186,9 +195,15 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
     // Set form values
     document.getElementById('q').value = q;
     document.getElementById('source').value = source;
-    document.getElementById('agency_code').value = agency_code;
     document.getElementById('award_type').value = award_type;
     document.getElementById('sort-select').value = `${sortBy}-${sortOrder}`;
+    
+    // Handle agency dropdown - may not be loaded yet
+    if (agenciesLoaded) {
+      document.getElementById('agency_code').value = agency_code;
+    } else {
+      pendingAgencyCode = agency_code;
+    }
     
     try {
       const apiParams = new URLSearchParams();
@@ -223,7 +238,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
           </td>
           <td class="px-4 py-3 text-center">
             <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded ${getSourceClass(award.source)}">${getSourceIcon(award.source)}</span>
-            ${award.agency_code ? `<div class="text-xs text-gray-500 mt-1">${award.agency_code}</div>` : ''}
+            ${award.agency_code ? `<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${award.agency_code}</div>` : ''}
           </td>
           <td class="px-4 py-3 text-center">
             <span class="chip chip-grant">${getAwardTypeName(award.award_type)}</span>
@@ -234,7 +249,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
           <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">${formatCurrency(award.amount)}</td>
           <td class="px-4 py-3 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">${formatDate(award.award_date)}</td>
         </tr>
-      `).join('') : '<tr><td colspan="6" class="text-center py-8 text-gray-500">No awards found</td></tr>';
+      `).join('') : '<tr><td colspan="6" class="text-center py-8 text-gray-500 dark:text-gray-400">No awards found</td></tr>';
       
       // Pagination
       const pagination = document.getElementById('pagination');
