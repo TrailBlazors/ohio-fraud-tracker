@@ -19,7 +19,7 @@ router = APIRouter()
 
 # Simple in-memory cache with TTL
 _cache: dict[str, tuple[float, Any]] = {}
-CACHE_TTL = 300  # 5 minutes
+CACHE_TTL = 86400  # 24 hours - data doesn't change frequently
 
 
 def get_cached(key: str):
@@ -179,6 +179,74 @@ async def warm_cache(db: Session = Depends(get_db)):
     except Exception as e:
         results["top_agencies"] = f"error: {str(e)}"
     
+    # 5. Funding by county (expensive geo query)
+    try:
+        city_results = db.execute(text("""
+            SELECT 
+                UPPER(r.city) as city,
+                COUNT(DISTINCT r.id) as recipient_count,
+                COUNT(a.id) as award_count,
+                COALESCE(SUM(a.amount), 0) as total_amount
+            FROM recipients r
+            LEFT JOIN awards a ON a.recipient_id = r.id
+            WHERE r.city IS NOT NULL AND r.city != '' AND r.state = 'OH'
+            GROUP BY UPPER(r.city)
+            ORDER BY total_amount DESC
+        """)).fetchall()
+        
+        city_to_county = {
+            "COLUMBUS": "FRANKLIN", "CLEVELAND": "CUYAHOGA", "CINCINNATI": "HAMILTON",
+            "TOLEDO": "LUCAS", "AKRON": "SUMMIT", "DAYTON": "MONTGOMERY",
+            "PARMA": "CUYAHOGA", "CANTON": "STARK", "YOUNGSTOWN": "MAHONING",
+            "LORAIN": "LORAIN", "HAMILTON": "BUTLER", "SPRINGFIELD": "CLARK",
+            "KETTERING": "MONTGOMERY", "ELYRIA": "LORAIN", "LAKEWOOD": "CUYAHOGA",
+            "DUBLIN": "FRANKLIN", "FAIRFIELD": "BUTLER", "FINDLAY": "HANCOCK",
+            "WARREN": "TRUMBULL", "LIMA": "ALLEN", "WESTERVILLE": "FRANKLIN",
+            "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
+            "BEAVERCREEK": "GREENE", "CLEVELAND HEIGHTS": "CUYAHOGA", "STRONGSVILLE": "CUYAHOGA",
+            "CUYAHOGA FALLS": "SUMMIT", "MIDDLETOWN": "BUTLER", "EUCLID": "CUYAHOGA",
+            "GROVE CITY": "FRANKLIN", "REYNOLDSBURG": "FRANKLIN", "STOW": "SUMMIT",
+            "DELAWARE": "DELAWARE", "BRUNSWICK": "MEDINA", "UPPER ARLINGTON": "FRANKLIN",
+            "GAHANNA": "FRANKLIN", "WESTLAKE": "CUYAHOGA", "NORTH OLMSTED": "CUYAHOGA",
+            "FAIRBORN": "GREENE", "MASSILLON": "STARK", "MASON": "WARREN",
+            "HUBER HEIGHTS": "MONTGOMERY", "MARION": "MARION",
+        }
+        
+        county_totals = {}
+        for row in city_results:
+            city = row[0]
+            county = city_to_county.get(city)
+            if county:
+                if county not in county_totals:
+                    county_totals[county] = {
+                        "county": county, "recipient_count": 0,
+                        "award_count": 0, "total_amount": 0, "cities": []
+                    }
+                county_totals[county]["recipient_count"] += row[1]
+                county_totals[county]["award_count"] += row[2]
+                county_totals[county]["total_amount"] += float(row[3])
+                if float(row[3]) > 0:
+                    county_totals[county]["cities"].append({
+                        "city": city.title(), "amount": float(row[3])
+                    })
+        
+        counties = sorted(county_totals.values(), key=lambda x: x["total_amount"], reverse=True)
+        for county in counties:
+            county["cities"] = sorted(county["cities"], key=lambda x: x["amount"], reverse=True)[:5]
+        
+        county_data = {"counties": counties, "total_counties": len(counties)}
+        
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == "funding_by_county").first()
+        if cached:
+            cached.stat_json = json.dumps(county_data)
+            cached.updated_at = datetime.utcnow()
+        else:
+            db.add(CachedStats(stat_key="funding_by_county", stat_value=len(counties), stat_json=json.dumps(county_data)))
+        
+        results["funding_by_county"] = "cached"
+    except Exception as e:
+        results["funding_by_county"] = f"error: {str(e)}"
+    
     try:
         db.commit()
         # Clear memory cache so next request gets fresh data
@@ -209,6 +277,7 @@ async def optimize_database(db: Session = Depends(get_db)):
         ("ix_awards_recipient_full", "CREATE INDEX IF NOT EXISTS ix_awards_recipient_full ON awards(recipient_id, id, amount)"),
         ("ix_awards_agency_amount", "CREATE INDEX IF NOT EXISTS ix_awards_agency_amount ON awards(agency_id, amount)"),
         ("ix_awards_source_amount", "CREATE INDEX IF NOT EXISTS ix_awards_source_amount ON awards(source, amount)"),
+        ("ix_recipients_city_state", "CREATE INDEX IF NOT EXISTS ix_recipients_city_state ON recipients(city, state)"),
     ]
     
     for name, sql in indexes:
@@ -750,11 +819,22 @@ async def get_data_status(db: Session = Depends(get_db)):
 
 @router.get("/stats/geo/funding-by-county")
 async def get_funding_by_county(db: Session = Depends(get_db)):
-    """Get total funding aggregated by Ohio county."""
+    """Get total funding aggregated by Ohio county. Uses database cache."""
+    
+    # Check memory cache first (5 min TTL)
     cached = get_cached("funding_by_county")
     if cached:
         return cached
     
+    # Check database cache (24 hour TTL)
+    cache_row = db.query(CachedStats).filter(CachedStats.stat_key == "funding_by_county").first()
+    if cache_row and cache_row.stat_json:
+        if cache_row.updated_at and cache_row.updated_at > datetime.utcnow() - timedelta(hours=24):
+            result = json.loads(cache_row.stat_json)
+            set_cached("funding_by_county", result)
+            return result
+    
+    # Cache miss - compute (slow)
     city_results = db.execute(text("""
         SELECT 
             UPPER(r.city) as city,
@@ -777,6 +857,13 @@ async def get_funding_by_county(db: Session = Depends(get_db)):
         "DUBLIN": "FRANKLIN", "FAIRFIELD": "BUTLER", "FINDLAY": "HANCOCK",
         "WARREN": "TRUMBULL", "LIMA": "ALLEN", "WESTERVILLE": "FRANKLIN",
         "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
+        "BEAVERCREEK": "GREENE", "CLEVELAND HEIGHTS": "CUYAHOGA", "STRONGSVILLE": "CUYAHOGA",
+        "CUYAHOGA FALLS": "SUMMIT", "MIDDLETOWN": "BUTLER", "EUCLID": "CUYAHOGA",
+        "GROVE CITY": "FRANKLIN", "REYNOLDSBURG": "FRANKLIN", "STOW": "SUMMIT",
+        "DELAWARE": "DELAWARE", "BRUNSWICK": "MEDINA", "UPPER ARLINGTON": "FRANKLIN",
+        "GAHANNA": "FRANKLIN", "WESTLAKE": "CUYAHOGA", "NORTH OLMSTED": "CUYAHOGA",
+        "FAIRBORN": "GREENE", "MASSILLON": "STARK", "MASON": "WARREN",
+        "HUBER HEIGHTS": "MONTGOMERY", "MARION": "MARION",
     }
     
     county_totals = {}
@@ -802,5 +889,20 @@ async def get_funding_by_county(db: Session = Depends(get_db)):
         county["cities"] = sorted(county["cities"], key=lambda x: x["amount"], reverse=True)[:5]
     
     result = {"counties": counties, "total_counties": len(counties)}
+    
+    # Save to memory cache
     set_cached("funding_by_county", result)
+    
+    # Save to database cache
+    if cache_row:
+        cache_row.stat_json = json.dumps(result)
+        cache_row.updated_at = datetime.utcnow()
+    else:
+        db.add(CachedStats(stat_key="funding_by_county", stat_value=len(counties), stat_json=json.dumps(result)))
+    
+    try:
+        db.commit()
+    except:
+        db.rollback()
+    
     return result
