@@ -80,6 +80,7 @@ class CorrelationEngine:
         """Find potential duplicate awards (same recipient, similar amount, close dates)"""
         
         # Find near-duplicates: same recipient, amount within 1%, dates within 30 days
+        # PostgreSQL: DATE - DATE returns integer days directly
         query = text("""
             SELECT 
                 a1.id as award1_id,
@@ -99,8 +100,8 @@ class CorrelationEngine:
             WHERE a1.award_date IS NOT NULL 
                 AND a2.award_date IS NOT NULL
                 AND a1.amount > 1000
-                AND ABS(a1.amount - a2.amount) / a1.amount < 0.01
-                AND ABS(julianday(a1.award_date) - julianday(a2.award_date)) <= 30
+                AND ABS(a1.amount - a2.amount) / NULLIF(a1.amount, 0) < 0.01
+                AND (a1.award_date - a2.award_date) BETWEEN -30 AND 30
             ORDER BY a1.amount DESC
             LIMIT 500
         """)
@@ -116,7 +117,13 @@ class CorrelationEngine:
             seen_pairs.add(pair_key)
             
             amount_diff_pct = abs(row.amount1 - row.amount2) / row.amount1 * 100
-            date_diff = abs((row.date1 - row.date2).days) if row.date1 and row.date2 else 0
+            
+            # Calculate date diff - handle both date and datetime types
+            if row.date1 and row.date2:
+                diff = row.date1 - row.date2
+                date_diff = abs(diff.days if hasattr(diff, 'days') else int(diff))
+            else:
+                date_diff = 0
             
             if amount_diff_pct == 0 and date_diff == 0:
                 severity = Severity.CRITICAL if row.amount1 > 100000 else Severity.HIGH
