@@ -371,22 +371,36 @@ async def get_duplicate_awards(
     # Calculate total amount at risk
     all_flags = query.all()
     total_at_risk = 0
+    valid_flags = []  # Only flags with actual evidence data
+    
     for flag in all_flags:
         if flag.evidence:
-            evidence = json.loads(flag.evidence)
-            # Add the smaller of the two amounts (potential double-payment)
-            if "award1" in evidence and "award2" in evidence:
-                total_at_risk += min(evidence["award1"].get("amount", 0), evidence["award2"].get("amount", 0))
+            try:
+                evidence = json.loads(flag.evidence)
+                # Only include flags where we have actual award amounts
+                award1_amount = evidence.get("award1", {}).get("amount", 0) if evidence.get("award1") else 0
+                award2_amount = evidence.get("award2", {}).get("amount", 0) if evidence.get("award2") else 0
+                
+                if award1_amount > 0 or award2_amount > 0:
+                    valid_flags.append(flag)
+                    # Add the smaller of the two amounts (potential double-payment)
+                    if award1_amount > 0 and award2_amount > 0:
+                        total_at_risk += min(award1_amount, award2_amount)
+            except:
+                pass  # Skip flags with invalid JSON
     
-    # Get paginated results
-    flags = query.order_by(
-        desc(FraudFlag.severity == "critical"),
-        desc(FraudFlag.severity == "high"),
-        desc(FraudFlag.created_at)
-    ).offset(offset).limit(limit).all()
+    # Update total to reflect only valid flags
+    total = len(valid_flags)
+    
+    # Get paginated results from valid flags
+    # Sort by severity and created_at
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    valid_flags.sort(key=lambda f: (severity_order.get(f.severity, 4), f.created_at or datetime.min), reverse=False)
+    
+    paginated_flags = valid_flags[offset:offset + limit]
     
     results = []
-    for flag in flags:
+    for flag in paginated_flags:
         # Get recipient info
         recipient = db.query(Recipient.name, Recipient.city).filter(
             Recipient.id == flag.recipient_id
@@ -411,19 +425,15 @@ async def get_duplicate_awards(
             "created_at": flag.created_at.isoformat() if flag.created_at else None
         })
     
-    # Summary by severity
-    severity_counts = db.query(
-        FraudFlag.severity,
-        func.count(FraudFlag.id).label("count")
-    ).filter(
-        FraudFlag.flag_type == "duplicate_award",
-        FraudFlag.is_resolved == False
-    ).group_by(FraudFlag.severity).all()
+    # Summary by severity (from valid flags only)
+    by_severity = {}
+    for flag in valid_flags:
+        by_severity[flag.severity] = by_severity.get(flag.severity, 0) + 1
     
     return {
         "total": total,
         "total_at_risk": total_at_risk,
-        "by_severity": {s.severity: s.count for s in severity_counts},
+        "by_severity": by_severity,
         "duplicates": results
     }
 
@@ -541,6 +551,31 @@ async def update_flag(
     db.commit()
     
     return {"success": True, "flag_id": flag_id}
+
+
+@router.delete("/correlation/flags/clear")
+async def clear_all_flags(
+    flag_type: Optional[str] = Query(None, description="Clear only this flag type"),
+    db: Session = Depends(get_db)
+):
+    """
+    Clear all fraud flags (or just a specific type).
+    Use this to reset and re-run correlation analysis.
+    """
+    query = db.query(FraudFlag)
+    
+    if flag_type:
+        query = query.filter(FraudFlag.flag_type == flag_type)
+    
+    count = query.count()
+    query.delete()
+    db.commit()
+    
+    return {
+        "success": True,
+        "deleted": count,
+        "flag_type": flag_type or "all"
+    }
 
 
 @router.post("/correlation/run")
