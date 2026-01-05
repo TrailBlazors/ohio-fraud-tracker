@@ -78,48 +78,86 @@ class CorrelationEngine:
         return self.flags
     
     def _check_duplicate_awards(self):
-        """Find potential duplicate awards (same recipient, amount, date)"""
+        """Find potential duplicate awards (same recipient, similar amount, close dates)"""
+        from sqlalchemy import text
         
-        # Find duplicates
-        duplicates = self.db.query(
-            Award.recipient_id,
-            Award.amount,
-            Award.award_date,
-            func.count(Award.id).label("count")
-        ).filter(
-            Award.award_date.isnot(None)
-        ).group_by(
-            Award.recipient_id,
-            Award.amount,
-            Award.award_date
-        ).having(
-            func.count(Award.id) > 1
-        ).all()
+        # Find near-duplicates: same recipient, amount within 1%, dates within 30 days
+        # Using raw SQL for the complex comparison
+        query = text("""
+            SELECT 
+                a1.id as award1_id,
+                a2.id as award2_id,
+                a1.recipient_id,
+                a1.amount as amount1,
+                a2.amount as amount2,
+                a1.award_date as date1,
+                a2.award_date as date2,
+                a1.source as source1,
+                a2.source as source2,
+                a1.description as desc1,
+                a2.description as desc2
+            FROM awards a1
+            JOIN awards a2 ON a1.recipient_id = a2.recipient_id
+                AND a1.id < a2.id
+            WHERE a1.award_date IS NOT NULL 
+                AND a2.award_date IS NOT NULL
+                AND a1.amount > 1000
+                AND ABS(a1.amount - a2.amount) / a1.amount < 0.01
+                AND ABS(julianday(a1.award_date) - julianday(a2.award_date)) <= 30
+            ORDER BY a1.amount DESC
+            LIMIT 500
+        """)
         
-        for dup in duplicates:
-            # Get the actual award IDs
-            awards = self.db.query(Award.id, Award.source).filter(
-                Award.recipient_id == dup.recipient_id,
-                Award.amount == dup.amount,
-                Award.award_date == dup.award_date
-            ).all()
-            
-            # Skip if all from same source (might be legitimate updates)
-            sources = set(a.source for a in awards)
-            if len(sources) == 1:
+        results = self.db.execute(query).fetchall()
+        
+        # Group by recipient to create sets
+        seen_pairs = set()
+        
+        for row in results:
+            pair_key = (min(row.award1_id, row.award2_id), max(row.award1_id, row.award2_id))
+            if pair_key in seen_pairs:
                 continue
+            seen_pairs.add(pair_key)
+            
+            # Determine severity based on amount and match quality
+            amount_diff_pct = abs(row.amount1 - row.amount2) / row.amount1 * 100
+            date_diff = abs((row.date1 - row.date2).days) if row.date1 and row.date2 else 0
+            
+            # Exact match = higher severity
+            if amount_diff_pct == 0 and date_diff == 0:
+                severity = Severity.CRITICAL if row.amount1 > 100000 else Severity.HIGH
+                match_type = "exact"
+            elif amount_diff_pct < 0.1 and date_diff <= 7:
+                severity = Severity.HIGH if row.amount1 > 50000 else Severity.MEDIUM
+                match_type = "near_exact"
+            else:
+                severity = Severity.MEDIUM if row.amount1 > 50000 else Severity.LOW
+                match_type = "similar"
             
             self.flags.append(Flag(
                 flag_type=FlagType.DUPLICATE_AWARD,
-                severity=Severity.HIGH if dup.amount > 100000 else Severity.MEDIUM,
-                description=f"Potential duplicate: {dup.count} awards of ${dup.amount:,.0f} on {dup.award_date}",
-                recipient_id=dup.recipient_id,
+                severity=severity,
+                description=f"Potential duplicate: ${row.amount1:,.0f} and ${row.amount2:,.0f} within {date_diff} days",
+                recipient_id=row.recipient_id,
+                award_id=row.award1_id,  # Primary award
                 evidence={
-                    "amount": dup.amount,
-                    "date": str(dup.award_date),
-                    "count": dup.count,
-                    "award_ids": [a.id for a in awards],
-                    "sources": list(sources)
+                    "match_type": match_type,
+                    "award1": {
+                        "id": row.award1_id,
+                        "amount": float(row.amount1),
+                        "date": str(row.date1),
+                        "source": row.source1,
+                        "description": (row.desc1 or "")[:200]
+                    },
+                    "award2": {
+                        "id": row.award2_id,
+                        "amount": float(row.amount2),
+                        "date": str(row.date2),
+                        "source": row.source2,
+                        "description": (row.desc2 or "")[:200]
+                    },
+                    "amount_diff_pct": round(amount_diff_pct, 2),
+                    "date_diff_days": date_diff
                 }
             ))
     

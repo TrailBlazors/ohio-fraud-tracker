@@ -278,6 +278,8 @@ async def optimize_database(db: Session = Depends(get_db)):
         ("ix_awards_agency_amount", "CREATE INDEX IF NOT EXISTS ix_awards_agency_amount ON awards(agency_id, amount)"),
         ("ix_awards_source_amount", "CREATE INDEX IF NOT EXISTS ix_awards_source_amount ON awards(source, amount)"),
         ("ix_recipients_city_state", "CREATE INDEX IF NOT EXISTS ix_recipients_city_state ON recipients(city, state)"),
+        ("ix_awards_recipient_date_amount", "CREATE INDEX IF NOT EXISTS ix_awards_recipient_date_amount ON awards(recipient_id, award_date, amount)"),
+        ("ix_fraud_flags_type", "CREATE INDEX IF NOT EXISTS ix_fraud_flags_type ON fraud_flags(flag_type, is_resolved)"),
     ]
     
     for name, sql in indexes:

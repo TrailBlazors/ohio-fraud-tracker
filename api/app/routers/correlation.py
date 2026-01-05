@@ -15,6 +15,87 @@ from app.models import Award, Recipient, FraudFlag
 router = APIRouter()
 
 
+@router.get("/correlation/duplicates")
+async def get_duplicate_awards(
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detected duplicate award pairs.
+    Returns flags of type 'duplicate_award' with full evidence.
+    """
+    query = db.query(FraudFlag).filter(
+        FraudFlag.flag_type == "duplicate_award",
+        FraudFlag.is_resolved == False
+    )
+    
+    if severity:
+        query = query.filter(FraudFlag.severity == severity)
+    
+    total = query.count()
+    
+    # Calculate total amount at risk
+    all_flags = query.all()
+    total_at_risk = 0
+    for flag in all_flags:
+        if flag.evidence:
+            evidence = json.loads(flag.evidence)
+            # Add the smaller of the two amounts (potential double-payment)
+            if "award1" in evidence and "award2" in evidence:
+                total_at_risk += min(evidence["award1"].get("amount", 0), evidence["award2"].get("amount", 0))
+    
+    # Get paginated results
+    flags = query.order_by(
+        desc(FraudFlag.severity == "critical"),
+        desc(FraudFlag.severity == "high"),
+        desc(FraudFlag.created_at)
+    ).offset(offset).limit(limit).all()
+    
+    results = []
+    for flag in flags:
+        # Get recipient info
+        recipient = db.query(Recipient.name, Recipient.city).filter(
+            Recipient.id == flag.recipient_id
+        ).first()
+        
+        evidence = json.loads(flag.evidence) if flag.evidence else {}
+        
+        results.append({
+            "id": flag.id,
+            "severity": flag.severity,
+            "description": flag.description,
+            "recipient_id": flag.recipient_id,
+            "recipient_name": recipient.name if recipient else None,
+            "recipient_city": recipient.city if recipient else None,
+            "match_type": evidence.get("match_type"),
+            "award1": evidence.get("award1"),
+            "award2": evidence.get("award2"),
+            "amount_diff_pct": evidence.get("amount_diff_pct"),
+            "date_diff_days": evidence.get("date_diff_days"),
+            "is_resolved": flag.is_resolved,
+            "notes": flag.notes,
+            "created_at": flag.created_at.isoformat() if flag.created_at else None
+        })
+    
+    # Summary by severity
+    severity_counts = db.query(
+        FraudFlag.severity,
+        func.count(FraudFlag.id).label("count")
+    ).filter(
+        FraudFlag.flag_type == "duplicate_award",
+        FraudFlag.is_resolved == False
+    ).group_by(FraudFlag.severity).all()
+    
+    return {
+        "total": total,
+        "total_at_risk": total_at_risk,
+        "by_severity": {s.severity: s.count for s in severity_counts},
+        "duplicates": results
+    }
+
+
 @router.get("/correlation/flags")
 async def get_fraud_flags(
     severity: Optional[str] = Query(None, description="Filter by severity: low, medium, high, critical"),
