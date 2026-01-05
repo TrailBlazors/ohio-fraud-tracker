@@ -213,7 +213,7 @@ if STATIC_DIR.exists():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
+    """Initialize database and warm cache on startup"""
     try:
         init_db()
         db_info = get_db_info()
@@ -222,6 +222,22 @@ async def startup_event():
             print(f"✓ Serving frontend from {STATIC_DIR}")
         else:
             print(f"⚠ Static directory not found: {STATIC_DIR}")
+        
+        # Warm the cache on startup by calling the function directly
+        print("⏳ Warming cache...")
+        try:
+            from app.database import SessionLocal
+            db = SessionLocal()
+            try:
+                # Import and call the cache warming logic directly
+                from app.routers.stats import warm_cache
+                result = await warm_cache(db)
+                print(f"✓ Cache warmed: {result.get('cached', {})}")
+            finally:
+                db.close()
+        except Exception as cache_err:
+            print(f"⚠ Cache warming failed (non-fatal): {cache_err}")
+            
     except Exception as e:
         print(f"✗ Startup error: {e}")
         import traceback
