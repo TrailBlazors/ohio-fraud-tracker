@@ -106,6 +106,11 @@ async def page_flagged():
     return serve_page("flagged")
 
 
+@app.get("/duplicates")
+async def page_duplicates():
+    return serve_page("duplicates")
+
+
 @app.get("/data-status")
 async def page_data_status():
     return serve_page("data-status")
