@@ -332,9 +332,15 @@ class CorrelationEngine:
                 created_at=datetime.utcnow()
             )
             self.db.add(db_flag)
-            saved += 1
+            
+            # Commit each flag individually to let PostgreSQL generate the ID
+            try:
+                self.db.commit()
+                saved += 1
+            except Exception as e:
+                self.db.rollback()
+                print(f"Error saving flag: {e}")
         
-        self.db.commit()
         return saved
 
 
