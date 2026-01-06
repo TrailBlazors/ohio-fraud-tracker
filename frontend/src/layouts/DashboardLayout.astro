@@ -34,7 +34,7 @@ const redFlagsItems = [
 ];
 
 // Check if current path is in red flags section
-const isRedFlagsSection = Astro.url.pathname.startsWith('/red-flags') || Astro.url.pathname === '/duplicates';
+const isRedFlagsSection = Astro.url.pathname.startsWith('/red-flags') || Astro.url.pathname.startsWith('/duplicates');
 
 // Helper to format source info
 function getSourceInfo(sourceKey: string) {
