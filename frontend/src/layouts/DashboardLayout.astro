@@ -23,7 +23,6 @@ const navItems = [
   { href: "/loans", label: "PPP Loans", icon: "currency-dollar" },
   { href: "/recipients", label: "Recipients", icon: "users" },
   { href: "/politicians", label: "Politicians", icon: "user-group" },
-  { href: "/submit-tip", label: "Submit Tip", icon: "megaphone" },
   { href: "/data-status", label: "Data Status", icon: "database" },
 ];
 
@@ -217,6 +216,12 @@ const structuredData = {
           </a>
         </div>
         <div class="flex items-center gap-2">
+          <a href="/submit-tip" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"></path>
+            </svg>
+            Submit Tip
+          </a>
           <a href="/roadmap" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
