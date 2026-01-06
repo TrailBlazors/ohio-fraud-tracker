@@ -613,6 +613,49 @@ async def list_recipients(
 # DYNAMIC ROUTES - Must come after static routes
 # =============================================================================
 
+@router.get("/recipients/enrich")
+async def enrich_recipients(
+    ids: str = Query(..., description="Comma-separated recipient IDs to enrich"),
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch award totals for a list of recipients.
+    Used for progressive loading - first load basic data fast, then enrich with totals.
+    """
+    try:
+        id_list = [int(id.strip()) for id in ids.split(",") if id.strip()]
+    except ValueError:
+        return {"items": []}
+
+    if not id_list or len(id_list) > 100:
+        return {"items": []}
+
+    # Batch fetch totals for all recipients
+    results = db.query(
+        Award.recipient_id,
+        func.count(Award.id).label("total_awards"),
+        func.coalesce(func.sum(Award.amount), 0).label("total_amount")
+    ).filter(
+        Award.recipient_id.in_(id_list)
+    ).group_by(Award.recipient_id).all()
+
+    items = {
+        row.recipient_id: {
+            "id": row.recipient_id,
+            "total_awards": row.total_awards,
+            "total_amount": float(row.total_amount)
+        }
+        for row in results
+    }
+
+    # Include zeros for recipients with no awards
+    for rid in id_list:
+        if rid not in items:
+            items[rid] = {"id": rid, "total_awards": 0, "total_amount": 0.0}
+
+    return {"items": list(items.values())}
+
+
 @router.get("/recipients/{recipient_id}")
 async def get_recipient(recipient_id: int, db: Session = Depends(get_db)):
     """Get detailed information for a single recipient including 990 data"""
