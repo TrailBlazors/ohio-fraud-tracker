@@ -121,6 +121,16 @@ async def page_politicians():
     return serve_page("politicians")
 
 
+@app.get("/submit-tip")
+async def page_submit_tip():
+    return serve_page("submit-tip")
+
+
+@app.get("/roadmap")
+async def page_roadmap():
+    return serve_page("roadmap")
+
+
 @app.get("/search")
 async def page_search():
     return serve_page("search")

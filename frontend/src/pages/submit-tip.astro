@@ -1,0 +1,379 @@
+---
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout
+  title="Submit a Tip - Ohio Fraud Tracker"
+  description="Submit tips about potential fraud, waste, or abuse of public funds in Ohio. Your information helps protect taxpayer money."
+  keywords="submit fraud tip Ohio, report fraud Ohio, government waste tip, whistleblower Ohio"
+>
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Submit a Tip</h1>
+    <p class="text-gray-500 dark:text-gray-400">Help us identify potential fraud, waste, or abuse of public funds</p>
+  </div>
+
+  <!-- Privacy Notice -->
+  <div class="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+      </svg>
+      <div>
+        <h3 class="text-sm font-medium text-blue-800 dark:text-blue-300">Your Privacy</h3>
+        <p class="text-sm text-blue-700 dark:text-blue-400 mt-1">
+          Tips can be submitted anonymously. If you provide an email, it will only be used to follow up on your tip and will not be published or shared with third parties unless legally required.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Success Message (hidden) -->
+  <div id="success-message" class="hidden bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+    <div class="flex items-center gap-3">
+      <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+      </svg>
+      <div>
+        <h3 class="text-sm font-medium text-green-800 dark:text-green-300">Tip Submitted Successfully</h3>
+        <p class="text-sm text-green-700 dark:text-green-400 mt-1">Thank you for your submission. We will review your tip promptly.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Message (hidden) -->
+  <div id="error-message" class="hidden bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+    <div class="flex items-center gap-3">
+      <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+      </svg>
+      <div>
+        <h3 class="text-sm font-medium text-red-800 dark:text-red-300">Submission Error</h3>
+        <p id="error-text" class="text-sm text-red-700 dark:text-red-400 mt-1">There was an error submitting your tip. Please try again.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tip Form -->
+  <form id="tip-form" class="space-y-6">
+    <!-- Section 1: Basic Information -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+        </svg>
+        Basic Information
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="submission_type" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+            Type of Submission <span class="text-red-500">*</span>
+          </label>
+          <select id="submission_type" name="submission_type" required
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">Select type...</option>
+            <option value="fraud_report">Fraud Report</option>
+            <option value="data_correction">Data Correction</option>
+            <option value="document_submission">Document Submission</option>
+            <option value="investigation_lead">Investigation Lead</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="state" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+            State
+          </label>
+          <select id="state" name="state"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">Select state...</option>
+            <option value="OH" selected>Ohio</option>
+            <option value="AL">Alabama</option>
+            <option value="AK">Alaska</option>
+            <option value="AZ">Arizona</option>
+            <option value="AR">Arkansas</option>
+            <option value="CA">California</option>
+            <option value="CO">Colorado</option>
+            <option value="CT">Connecticut</option>
+            <option value="DE">Delaware</option>
+            <option value="FL">Florida</option>
+            <option value="GA">Georgia</option>
+            <option value="HI">Hawaii</option>
+            <option value="ID">Idaho</option>
+            <option value="IL">Illinois</option>
+            <option value="IN">Indiana</option>
+            <option value="IA">Iowa</option>
+            <option value="KS">Kansas</option>
+            <option value="KY">Kentucky</option>
+            <option value="LA">Louisiana</option>
+            <option value="ME">Maine</option>
+            <option value="MD">Maryland</option>
+            <option value="MA">Massachusetts</option>
+            <option value="MI">Michigan</option>
+            <option value="MN">Minnesota</option>
+            <option value="MS">Mississippi</option>
+            <option value="MO">Missouri</option>
+            <option value="MT">Montana</option>
+            <option value="NE">Nebraska</option>
+            <option value="NV">Nevada</option>
+            <option value="NH">New Hampshire</option>
+            <option value="NJ">New Jersey</option>
+            <option value="NM">New Mexico</option>
+            <option value="NY">New York</option>
+            <option value="NC">North Carolina</option>
+            <option value="ND">North Dakota</option>
+            <option value="OK">Oklahoma</option>
+            <option value="OR">Oregon</option>
+            <option value="PA">Pennsylvania</option>
+            <option value="RI">Rhode Island</option>
+            <option value="SC">South Carolina</option>
+            <option value="SD">South Dakota</option>
+            <option value="TN">Tennessee</option>
+            <option value="TX">Texas</option>
+            <option value="UT">Utah</option>
+            <option value="VT">Vermont</option>
+            <option value="VA">Virginia</option>
+            <option value="WA">Washington</option>
+            <option value="WV">West Virginia</option>
+            <option value="WI">Wisconsin</option>
+            <option value="WY">Wyoming</option>
+            <option value="DC">District of Columbia</option>
+            <option value="PR">Puerto Rico</option>
+            <option value="VI">U.S. Virgin Islands</option>
+            <option value="GU">Guam</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label for="subject" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+          Subject <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="subject" name="subject" required maxlength="200"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          placeholder="Brief summary of your tip..." />
+      </div>
+
+      <div class="mt-4">
+        <label for="description" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+          Description <span class="text-red-500">*</span>
+        </label>
+        <textarea id="description" name="description" required rows="6" maxlength="10000"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          placeholder="Provide as much detail as possible about the suspected fraud, waste, or abuse..."></textarea>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <span id="char-count">0</span> / 10,000 characters
+        </p>
+      </div>
+    </div>
+
+    <!-- Section 2: Type of Fraud -->
+    <div id="fraud-type-section" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+        </svg>
+        Type of Fraud
+      </h2>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Select all that apply</p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="ppp" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">PPP Loans</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="eidl" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">EIDL Loans</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="childcare" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">Childcare/CCAP</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="cacfp" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">Child Food/CACFP</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="medicare" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">Medicare</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="medicaid" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">Medicaid</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="snap" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">SNAP/Food Stamps</span>
+        </label>
+
+        <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <input type="checkbox" name="fraud_type" value="other" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-gray-600 dark:border-gray-500">
+          <span class="ml-2 text-sm text-gray-900 dark:text-white">Other</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Section 3: Details -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"></path>
+        </svg>
+        Related Details
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label for="related_name" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+            Related Business/Person Name
+          </label>
+          <input type="text" id="related_name" name="related_name" maxlength="200"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Name of business or individual..." />
+        </div>
+
+        <div>
+          <label for="related_address" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+            Related Address
+          </label>
+          <input type="text" id="related_address" name="related_address" maxlength="300"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Address if known..." />
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label for="evidence" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+          Evidence Description
+        </label>
+        <input type="text" id="evidence" name="evidence" maxlength="500"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          placeholder="Describe any evidence you have (documents, photos, records)..." />
+      </div>
+    </div>
+
+    <!-- Section 4: Contact Information -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+        </svg>
+        Contact Information
+        <span class="text-xs font-normal text-gray-500 dark:text-gray-400">(Optional)</span>
+      </h2>
+
+      <div class="max-w-md">
+        <label for="email" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+          Contact Email
+        </label>
+        <input type="email" id="email" name="email"
+          class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          placeholder="your@email.com" />
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Your email will not be published. Leave blank to remain anonymous.
+        </p>
+      </div>
+    </div>
+
+    <!-- Submit Button -->
+    <div class="flex justify-end">
+      <button type="submit" id="submit-btn"
+        class="inline-flex items-center gap-2 px-6 py-3 text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path>
+        </svg>
+        Submit Tip
+      </button>
+    </div>
+  </form>
+</DashboardLayout>
+
+<script is:inline>
+  // Character counter for description
+  const description = document.getElementById('description');
+  const charCount = document.getElementById('char-count');
+
+  description.addEventListener('input', () => {
+    charCount.textContent = description.value.length.toLocaleString();
+  });
+
+  // Show/hide fraud type section based on submission type
+  const submissionType = document.getElementById('submission_type');
+  const fraudTypeSection = document.getElementById('fraud-type-section');
+
+  submissionType.addEventListener('change', () => {
+    if (submissionType.value === 'fraud_report' || submissionType.value === 'investigation_lead') {
+      fraudTypeSection.classList.remove('hidden');
+    } else {
+      fraudTypeSection.classList.add('hidden');
+    }
+  });
+
+  // Form submission
+  const form = document.getElementById('tip-form');
+  const submitBtn = document.getElementById('submit-btn');
+  const successMessage = document.getElementById('success-message');
+  const errorMessage = document.getElementById('error-message');
+  const errorText = document.getElementById('error-text');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Disable button and show loading state
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `
+      <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Submitting...
+    `;
+
+    // Collect form data
+    const formData = new FormData(form);
+    const data = {
+      submission_type: formData.get('submission_type'),
+      subject: formData.get('subject'),
+      description: formData.get('description'),
+      state: formData.get('state'),
+      fraud_types: formData.getAll('fraud_type'),
+      related_name: formData.get('related_name'),
+      related_address: formData.get('related_address'),
+      evidence: formData.get('evidence'),
+      email: formData.get('email'),
+      submitted_at: new Date().toISOString()
+    };
+
+    // For now, just log to console and show success
+    // TODO: Send to actual endpoint when ready
+    console.log('Tip submitted:', data);
+
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Show success message
+    successMessage.classList.remove('hidden');
+    errorMessage.classList.add('hidden');
+    form.reset();
+    charCount.textContent = '0';
+
+    // Scroll to top to show success message
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Reset button
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `
+      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path>
+      </svg>
+      Submit Tip
+    `;
+  });
+</script>

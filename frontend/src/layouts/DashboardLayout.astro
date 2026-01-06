@@ -23,6 +23,7 @@ const navItems = [
   { href: "/loans", label: "PPP Loans", icon: "currency-dollar" },
   { href: "/recipients", label: "Recipients", icon: "users" },
   { href: "/politicians", label: "Politicians", icon: "user-group" },
+  { href: "/submit-tip", label: "Submit Tip", icon: "megaphone" },
   { href: "/data-status", label: "Data Status", icon: "database" },
 ];
 
@@ -215,8 +216,14 @@ const structuredData = {
             </svg>
           </a>
         </div>
-        <div class="flex items-center">
-          <div class="flex items-center ms-3">
+        <div class="flex items-center gap-2">
+          <a href="/roadmap" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
+            </svg>
+            Roadmap
+          </a>
+          <div class="flex items-center">
             <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5" aria-label="Toggle dark mode">
               <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
@@ -274,6 +281,11 @@ const structuredData = {
               {item.icon === 'search' && (
                 <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                   <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"></path>
+                </svg>
+              )}
+              {item.icon === 'megaphone' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"></path>
                 </svg>
               )}
               {item.icon === 'database' && (
