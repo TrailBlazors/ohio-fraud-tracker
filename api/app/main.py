@@ -179,6 +179,23 @@ async def page_recipients():
     return serve_page("recipients")
 
 
+@app.get("/recipients/view")
+async def page_recipient_view():
+    """Serve recipient detail page (query param: ?id=xxx)"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend not available")
+    
+    # Try the view page
+    for path in [
+        STATIC_DIR / "recipients" / "view" / "index.html",
+        STATIC_DIR / "recipients" / "view.html",
+    ]:
+        if path.is_file():
+            return FileResponse(path, media_type="text/html")
+    
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
 @app.get("/recipients/{recipient_id}")
 async def page_recipient_detail(recipient_id: str):
     """Serve recipient detail page (client-side rendered)"""
