@@ -373,6 +373,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
       if (city) apiParams.set('city', city);
       apiParams.set('page', String(currentPage));
       apiParams.set('page_size', String(pageSize));
+      apiParams.set('fast', 'true');
       
       const res = await fetch(`${apiBase}/api/recipients?${apiParams}`);
       if (!res.ok) throw new Error('Failed to load recipients');
