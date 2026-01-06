@@ -120,11 +120,12 @@ async def list_awards(
     sort_by: str = Query("amount", description="Sort field"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
     skip_count: bool = Query(False, description="Skip total count for faster response"),
+    fast: bool = Query(False, description="Fast mode - minimal JOINs for faster response"),
     db: Session = Depends(get_db)
 ):
     """
     List awards with filtering, pagination, and sorting.
-    
+
     Filters:
     - q: Search in recipient name, description, city
     - agency_code: Filter by agency (HHS, DOT, etc.)
@@ -134,8 +135,110 @@ async def list_awards(
     - city: Recipient city
     - source: Data source (usaspending, sba_ppp, etc.)
     - skip_count: Skip total count for faster initial load
+    - fast: Fast mode - skip JOINs for faster response (recipient info fetched separately)
     """
-    
+
+    # Check if query has any filters
+    has_filters = any([
+        q, recipient_id, agency_code, award_type,
+        min_amount, max_amount, start_date, end_date,
+        city, cfda_number, source
+    ])
+
+    # Fast mode - minimal query without JOINs for maximum speed
+    if fast:
+        query = db.query(Award)
+
+        # Apply simple filters (no JOINs needed)
+        if recipient_id:
+            query = query.filter(Award.recipient_id == recipient_id)
+        if award_type:
+            query = query.filter(Award.award_type == award_type)
+        if source:
+            query = query.filter(Award.source == source)
+        if min_amount is not None:
+            query = query.filter(Award.amount >= min_amount)
+        if max_amount is not None:
+            query = query.filter(Award.amount <= max_amount)
+        if start_date:
+            query = query.filter(Award.award_date >= start_date)
+        if end_date:
+            query = query.filter(Award.award_date <= end_date)
+        if cfda_number:
+            query = query.filter(Award.cfda_number == cfda_number)
+
+        # For text search in fast mode, we need a subquery for recipient name
+        if q:
+            search_term = f"%{q}%"
+            # Search only in award description for fast mode
+            query = query.filter(Award.description.ilike(search_term))
+
+        # Sort by award columns only in fast mode
+        fast_sort_columns = {
+            "amount": Award.amount,
+            "date": Award.award_date,
+            "type": Award.award_type,
+        }
+        sort_col = fast_sort_columns.get(sort_by, Award.amount)
+        query = query.order_by(asc(sort_col) if sort_order == "asc" else desc(sort_col))
+
+        # Pagination
+        offset = (page - 1) * page_size
+        results = query.offset(offset).limit(page_size).all()
+
+        # Batch fetch recipient names for display
+        recipient_ids = [a.recipient_id for a in results]
+        recipients_map = {}
+        if recipient_ids:
+            recipients = db.query(Recipient.id, Recipient.name, Recipient.city).filter(
+                Recipient.id.in_(recipient_ids)
+            ).all()
+            recipients_map = {r.id: (r.name, r.city) for r in recipients}
+
+        # Batch fetch agency codes
+        agency_ids = [a.agency_id for a in results if a.agency_id]
+        agencies_map = {}
+        if agency_ids:
+            agencies = db.query(Agency.id, Agency.code, Agency.name).filter(
+                Agency.id.in_(agency_ids)
+            ).all()
+            agencies_map = {a.id: (a.code, a.name) for a in agencies}
+
+        items = []
+        for award in results:
+            r_name, r_city = recipients_map.get(award.recipient_id, ("Unknown", None))
+            a_code, a_name = agencies_map.get(award.agency_id, (None, None)) if award.agency_id else (None, None)
+            items.append(AwardListItem(
+                id=award.id,
+                source=award.source,
+                award_type=award.award_type,
+                amount=award.amount,
+                description=award.description,
+                recipient_name=r_name,
+                recipient_city=r_city,
+                agency_code=a_code,
+                agency_name=a_name,
+                award_date=award.award_date,
+                cfda_number=award.cfda_number
+            ))
+
+        # Estimate total for pagination
+        total_count = len(items) + ((page - 1) * page_size)
+        has_next = len(items) == page_size
+        has_prev = page > 1
+        total_pages = page + (1 if has_next else 0)
+
+        return AwardListResponse(
+            items=items,
+            page=page,
+            page_size=page_size,
+            total_count=total_count,
+            total_pages=total_pages,
+            has_next=has_next,
+            has_prev=has_prev
+        )
+
+    # Standard mode with full JOINs
     params = AwardSearchParams(
         q=q,
         recipient_id=recipient_id,
@@ -153,14 +256,7 @@ async def list_awards(
         sort_by=sort_by,
         sort_order=sort_order
     )
-    
-    # Check if query has any filters
-    has_filters = any([
-        q, recipient_id, agency_code, award_type, 
-        min_amount, max_amount, start_date, end_date, 
-        city, cfda_number, source
-    ])
-    
+
     # Build query
     query = build_award_query(db, params)
     

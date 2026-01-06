@@ -216,6 +216,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
       apiParams.set('sort_by', sortBy);
       apiParams.set('sort_order', sortOrder);
       apiParams.set('skip_count', 'true');  // Skip expensive COUNT query for faster response
+      apiParams.set('fast', 'true');  // Use fast mode - batch fetch recipients/agencies
 
       const res = await fetch(`${apiBase}/api/awards?${apiParams}`);
       if (!res.ok) throw new Error('Failed to load awards');
