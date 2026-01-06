@@ -290,12 +290,12 @@ const structuredData = {
         
         <!-- Red Flags Section -->
         <li>
-          <button type="button" class={`flex items-center w-full p-2 text-base transition duration-75 rounded-lg group ${isRedFlagsSection ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`} aria-controls="dropdown-red-flags" data-collapse-toggle="dropdown-red-flags">
+          <button type="button" id="red-flags-toggle" class={`flex items-center w-full p-2 text-base transition duration-75 rounded-lg group ${isRedFlagsSection ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'}`} aria-controls="dropdown-red-flags">
             <svg class="w-5 h-5 transition duration-75 text-red-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
             </svg>
             <span class="flex-1 ms-3 text-left whitespace-nowrap">Red Flags</span>
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 10 6" aria-hidden="true">
+            <svg id="red-flags-chevron" class={`w-3 h-3 transition-transform ${isRedFlagsSection ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 10 6" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/>
             </svg>
           </button>
@@ -489,6 +489,7 @@ const structuredData = {
 
   <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.js"></script>
   <script is:inline>
+    // Theme toggle
     const themeToggleBtn = document.getElementById('theme-toggle');
     const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
     const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
@@ -511,6 +512,18 @@ const structuredData = {
         localStorage.setItem('color-theme', 'dark');
       }
     });
+    
+    // Red Flags dropdown toggle (custom - doesn't use Flowbite)
+    const redFlagsToggle = document.getElementById('red-flags-toggle');
+    const redFlagsDropdown = document.getElementById('dropdown-red-flags');
+    const redFlagsChevron = document.getElementById('red-flags-chevron');
+    
+    if (redFlagsToggle && redFlagsDropdown) {
+      redFlagsToggle.addEventListener('click', function() {
+        redFlagsDropdown.classList.toggle('hidden');
+        redFlagsChevron.classList.toggle('rotate-180');
+      });
+    }
   </script>
 </body>
 </html>
