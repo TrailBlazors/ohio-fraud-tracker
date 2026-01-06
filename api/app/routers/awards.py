@@ -20,37 +20,70 @@ router = APIRouter()
 
 # Cache for FTS availability check
 _fts_available: Optional[bool] = None
+_fts_type: Optional[str] = None  # "postgresql" or "sqlite"
 
 
 def is_fts_available(db: Session) -> bool:
-    """Check if FTS5 table exists and is populated."""
-    global _fts_available
+    """Check if full-text search is configured."""
+    global _fts_available, _fts_type
     if _fts_available is not None:
         return _fts_available
-    try:
-        count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
-        _fts_available = count > 0
-    except Exception:
-        _fts_available = False
+
+    from app.database import IS_POSTGRES
+
+    if IS_POSTGRES:
+        try:
+            # Check if tsvector column exists and has data
+            count = db.execute(text("""
+                SELECT COUNT(*) FROM awards WHERE description_tsv IS NOT NULL
+            """)).scalar()
+            _fts_available = count > 0
+            _fts_type = "postgresql"
+        except Exception:
+            _fts_available = False
+    else:
+        try:
+            count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
+            _fts_available = count > 0
+            _fts_type = "sqlite"
+        except Exception:
+            _fts_available = False
+
     return _fts_available
 
 
 def search_with_fts(db: Session, search_term: str, limit: int = 1000) -> list[int]:
     """
-    Use FTS5 to search descriptions and return matching award IDs.
+    Use full-text search to find matching award IDs.
+    - PostgreSQL: Uses tsvector/tsquery with GIN index
+    - SQLite: Uses FTS5 MATCH
     Falls back to empty list if FTS is not available.
     """
     if not is_fts_available(db):
         return []
+
+    from app.database import IS_POSTGRES
+
     try:
-        # FTS5 search - use MATCH for full-text search
-        # Escape special FTS characters and use prefix matching
-        safe_term = search_term.replace('"', '""')
-        results = db.execute(
-            text(f'SELECT rowid FROM awards_fts WHERE description MATCH :term LIMIT :limit'),
-            {"term": f'"{safe_term}"*', "limit": limit}
-        ).fetchall()
-        return [r[0] for r in results]
+        if IS_POSTGRES:
+            # PostgreSQL: Use plainto_tsquery for simple search
+            results = db.execute(
+                text("""
+                    SELECT id FROM awards
+                    WHERE description_tsv @@ plainto_tsquery('english', :term)
+                    LIMIT :limit
+                """),
+                {"term": search_term, "limit": limit}
+            ).fetchall()
+            return [r[0] for r in results]
+        else:
+            # SQLite FTS5 search - use MATCH for full-text search
+            safe_term = search_term.replace('"', '""')
+            results = db.execute(
+                text('SELECT rowid FROM awards_fts WHERE description MATCH :term LIMIT :limit'),
+                {"term": f'"{safe_term}"*', "limit": limit}
+            ).fetchall()
+            return [r[0] for r in results]
     except Exception:
         return []
 

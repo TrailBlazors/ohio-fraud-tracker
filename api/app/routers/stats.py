@@ -308,74 +308,153 @@ async def optimize_database(db: Session = Depends(get_db)):
 @router.get("/stats/db/fts-setup")
 async def setup_fts(db: Session = Depends(get_db)):
     """
-    Create FTS5 virtual table for fast full-text search on award descriptions.
-    This significantly speeds up text searches compared to LIKE/ILIKE.
+    Create full-text search index for award descriptions.
+    - PostgreSQL: Uses native tsvector/GIN index
+    - SQLite: Uses FTS5 virtual table
     Run once after deployment or after major data imports.
     """
+    from app.database import IS_POSTGRES
     results = {}
 
-    # Create FTS5 virtual table for award descriptions
-    try:
-        db.execute(text("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS awards_fts USING fts5(
-                description,
-                content='awards',
-                content_rowid='id'
-            )
-        """))
-        db.commit()
-        results["fts_table"] = "created"
-    except Exception as e:
-        results["fts_table"] = f"error: {str(e)}"
-
-    # Create triggers to keep FTS in sync
-    triggers = [
-        ("awards_ai", """
-            CREATE TRIGGER IF NOT EXISTS awards_ai AFTER INSERT ON awards BEGIN
-                INSERT INTO awards_fts(rowid, description) VALUES (new.id, new.description);
-            END
-        """),
-        ("awards_ad", """
-            CREATE TRIGGER IF NOT EXISTS awards_ad AFTER DELETE ON awards BEGIN
-                INSERT INTO awards_fts(awards_fts, rowid, description) VALUES('delete', old.id, old.description);
-            END
-        """),
-        ("awards_au", """
-            CREATE TRIGGER IF NOT EXISTS awards_au AFTER UPDATE ON awards BEGIN
-                INSERT INTO awards_fts(awards_fts, rowid, description) VALUES('delete', old.id, old.description);
-                INSERT INTO awards_fts(rowid, description) VALUES (new.id, new.description);
-            END
-        """),
-    ]
-
-    for name, sql in triggers:
+    if IS_POSTGRES:
+        # PostgreSQL: Add tsvector column and GIN index
         try:
-            db.execute(text(sql))
+            # Add tsvector column if not exists
+            db.execute(text("""
+                ALTER TABLE awards
+                ADD COLUMN IF NOT EXISTS description_tsv tsvector
+            """))
             db.commit()
-            results[name] = "created"
+            results["tsvector_column"] = "created"
         except Exception as e:
-            results[name] = f"error: {str(e)}"
+            db.rollback()
+            results["tsvector_column"] = f"error: {str(e)}"
 
-    # Populate FTS table with existing data
-    try:
-        db.execute(text("""
-            INSERT OR REPLACE INTO awards_fts(rowid, description)
-            SELECT id, description FROM awards WHERE description IS NOT NULL
-        """))
-        db.commit()
-        results["fts_populate"] = "complete"
-    except Exception as e:
-        results["fts_populate"] = f"error: {str(e)}"
+        # Populate tsvector column
+        try:
+            db.execute(text("""
+                UPDATE awards
+                SET description_tsv = to_tsvector('english', COALESCE(description, ''))
+                WHERE description_tsv IS NULL AND description IS NOT NULL
+            """))
+            db.commit()
+            results["tsvector_populate"] = "complete"
+        except Exception as e:
+            db.rollback()
+            results["tsvector_populate"] = f"error: {str(e)}"
 
-    # Get count of indexed records
-    try:
-        count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
-        results["indexed_count"] = count
-    except Exception as e:
-        results["indexed_count"] = f"error: {str(e)}"
+        # Create GIN index
+        try:
+            db.execute(text("""
+                CREATE INDEX IF NOT EXISTS ix_awards_description_fts
+                ON awards USING GIN(description_tsv)
+            """))
+            db.commit()
+            results["gin_index"] = "created"
+        except Exception as e:
+            db.rollback()
+            results["gin_index"] = f"error: {str(e)}"
+
+        # Create trigger to auto-update tsvector on insert/update
+        try:
+            db.execute(text("""
+                CREATE OR REPLACE FUNCTION awards_tsv_trigger() RETURNS trigger AS $$
+                BEGIN
+                    NEW.description_tsv := to_tsvector('english', COALESCE(NEW.description, ''));
+                    RETURN NEW;
+                END
+                $$ LANGUAGE plpgsql
+            """))
+            db.execute(text("""
+                DROP TRIGGER IF EXISTS awards_tsv_update ON awards
+            """))
+            db.execute(text("""
+                CREATE TRIGGER awards_tsv_update
+                BEFORE INSERT OR UPDATE ON awards
+                FOR EACH ROW EXECUTE FUNCTION awards_tsv_trigger()
+            """))
+            db.commit()
+            results["trigger"] = "created"
+        except Exception as e:
+            db.rollback()
+            results["trigger"] = f"error: {str(e)}"
+
+        # Count indexed rows
+        try:
+            count = db.execute(text("""
+                SELECT COUNT(*) FROM awards WHERE description_tsv IS NOT NULL
+            """)).scalar()
+            results["indexed_count"] = count
+        except Exception as e:
+            results["indexed_count"] = f"error: {str(e)}"
+
+    else:
+        # SQLite: Use FTS5 virtual table
+        try:
+            db.execute(text("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS awards_fts USING fts5(
+                    description,
+                    content='awards',
+                    content_rowid='id'
+                )
+            """))
+            db.commit()
+            results["fts_table"] = "created"
+        except Exception as e:
+            db.rollback()
+            results["fts_table"] = f"error: {str(e)}"
+
+        # Create triggers to keep FTS in sync
+        triggers = [
+            ("awards_ai", """
+                CREATE TRIGGER IF NOT EXISTS awards_ai AFTER INSERT ON awards BEGIN
+                    INSERT INTO awards_fts(rowid, description) VALUES (new.id, new.description);
+                END
+            """),
+            ("awards_ad", """
+                CREATE TRIGGER IF NOT EXISTS awards_ad AFTER DELETE ON awards BEGIN
+                    INSERT INTO awards_fts(awards_fts, rowid, description) VALUES('delete', old.id, old.description);
+                END
+            """),
+            ("awards_au", """
+                CREATE TRIGGER IF NOT EXISTS awards_au AFTER UPDATE ON awards BEGIN
+                    INSERT INTO awards_fts(awards_fts, rowid, description) VALUES('delete', old.id, old.description);
+                    INSERT INTO awards_fts(rowid, description) VALUES (new.id, new.description);
+                END
+            """),
+        ]
+
+        for name, sql in triggers:
+            try:
+                db.execute(text(sql))
+                db.commit()
+                results[name] = "created"
+            except Exception as e:
+                db.rollback()
+                results[name] = f"error: {str(e)}"
+
+        # Populate FTS table with existing data
+        try:
+            db.execute(text("""
+                INSERT OR REPLACE INTO awards_fts(rowid, description)
+                SELECT id, description FROM awards WHERE description IS NOT NULL
+            """))
+            db.commit()
+            results["fts_populate"] = "complete"
+        except Exception as e:
+            db.rollback()
+            results["fts_populate"] = f"error: {str(e)}"
+
+        # Get count of indexed records
+        try:
+            count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
+            results["indexed_count"] = count
+        except Exception as e:
+            results["indexed_count"] = f"error: {str(e)}"
 
     return {
         "status": "ok",
+        "database": "postgresql" if IS_POSTGRES else "sqlite",
         "fts": results,
         "timestamp": datetime.utcnow().isoformat()
     }
@@ -383,20 +462,43 @@ async def setup_fts(db: Session = Depends(get_db)):
 
 @router.get("/stats/db/fts-status")
 async def fts_status(db: Session = Depends(get_db)):
-    """Check if FTS5 is set up and get index stats."""
-    try:
-        count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
-        return {
-            "fts_enabled": True,
-            "indexed_count": count,
-            "status": "active"
-        }
-    except Exception:
-        return {
-            "fts_enabled": False,
-            "indexed_count": 0,
-            "status": "not_configured"
-        }
+    """Check if full-text search is set up and get index stats."""
+    from app.database import IS_POSTGRES
+
+    if IS_POSTGRES:
+        try:
+            count = db.execute(text("""
+                SELECT COUNT(*) FROM awards WHERE description_tsv IS NOT NULL
+            """)).scalar()
+            return {
+                "fts_enabled": True,
+                "database": "postgresql",
+                "indexed_count": count,
+                "status": "active"
+            }
+        except Exception:
+            return {
+                "fts_enabled": False,
+                "database": "postgresql",
+                "indexed_count": 0,
+                "status": "not_configured"
+            }
+    else:
+        try:
+            count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
+            return {
+                "fts_enabled": True,
+                "database": "sqlite",
+                "indexed_count": count,
+                "status": "active"
+            }
+        except Exception:
+            return {
+                "fts_enabled": False,
+                "database": "sqlite",
+                "indexed_count": 0,
+                "status": "not_configured"
+            }
 
 
 # =============================================================================
