@@ -5,43 +5,90 @@ Awards endpoints - grants, loans, contracts
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, asc, or_
+from sqlalchemy import func, desc, asc, or_, text
 
 from app.database import get_db
 from app.models import Award, Recipient, Agency, SubAgency, CachedStats
 from app.schemas import (
-    AwardListResponse, 
-    AwardListItem, 
+    AwardListResponse,
+    AwardListItem,
     AwardDetail,
     AwardSearchParams
 )
 
 router = APIRouter()
 
+# Cache for FTS availability check
+_fts_available: Optional[bool] = None
+
+
+def is_fts_available(db: Session) -> bool:
+    """Check if FTS5 table exists and is populated."""
+    global _fts_available
+    if _fts_available is not None:
+        return _fts_available
+    try:
+        count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
+        _fts_available = count > 0
+    except Exception:
+        _fts_available = False
+    return _fts_available
+
+
+def search_with_fts(db: Session, search_term: str, limit: int = 1000) -> list[int]:
+    """
+    Use FTS5 to search descriptions and return matching award IDs.
+    Falls back to empty list if FTS is not available.
+    """
+    if not is_fts_available(db):
+        return []
+    try:
+        # FTS5 search - use MATCH for full-text search
+        # Escape special FTS characters and use prefix matching
+        safe_term = search_term.replace('"', '""')
+        results = db.execute(
+            text(f'SELECT rowid FROM awards_fts WHERE description MATCH :term LIMIT :limit'),
+            {"term": f'"{safe_term}"*', "limit": limit}
+        ).fetchall()
+        return [r[0] for r in results]
+    except Exception:
+        return []
+
 
 def build_award_query(db: Session, params: AwardSearchParams, fast_search: bool = False):
     """Build filtered query based on search params"""
-    
+
     query = db.query(Award, Recipient, Agency)\
         .join(Recipient, Award.recipient_id == Recipient.id)\
         .outerjoin(Agency, Award.agency_id == Agency.id)
-    
-    # Text search - use LIKE without LOWER() for index usage
-    # SQLite LIKE is case-insensitive by default for ASCII
+
+    # Text search - try FTS first, fall back to LIKE
     if params.q:
         search_term = f"%{params.q}%"
         if fast_search:
             # Fast: only search recipient name
             query = query.filter(Recipient.name.ilike(search_term))
         else:
-            # Full: search name, description, city
-            query = query.filter(
-                or_(
-                    Recipient.name.ilike(search_term),
-                    Award.description.ilike(search_term),
-                    Recipient.city.ilike(search_term)
+            # Try FTS for description search (much faster)
+            fts_ids = search_with_fts(db, params.q)
+            if fts_ids:
+                # FTS found matches - combine with recipient name search
+                query = query.filter(
+                    or_(
+                        Recipient.name.ilike(search_term),
+                        Award.id.in_(fts_ids),
+                        Recipient.city.ilike(search_term)
+                    )
                 )
-            )
+            else:
+                # FTS not available or no matches - fall back to LIKE
+                query = query.filter(
+                    or_(
+                        Recipient.name.ilike(search_term),
+                        Award.description.ilike(search_term),
+                        Recipient.city.ilike(search_term)
+                    )
+                )
     
     # Filters
     if params.recipient_id:

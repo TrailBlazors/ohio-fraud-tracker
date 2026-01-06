@@ -269,7 +269,7 @@ async def optimize_database(db: Session = Depends(get_db)):
     Call this once after deployment or after major data imports.
     """
     results = {}
-    
+
     indexes = [
         ("ix_awards_recipient_amount", "CREATE INDEX IF NOT EXISTS ix_awards_recipient_amount ON awards(recipient_id, amount)"),
         ("ix_fraud_flags_unresolved", "CREATE INDEX IF NOT EXISTS ix_fraud_flags_unresolved ON fraud_flags(is_resolved, recipient_id)"),
@@ -281,7 +281,7 @@ async def optimize_database(db: Session = Depends(get_db)):
         ("ix_awards_recipient_date_amount", "CREATE INDEX IF NOT EXISTS ix_awards_recipient_date_amount ON awards(recipient_id, award_date, amount)"),
         ("ix_fraud_flags_type", "CREATE INDEX IF NOT EXISTS ix_fraud_flags_type ON fraud_flags(flag_type, is_resolved)"),
     ]
-    
+
     for name, sql in indexes:
         try:
             db.execute(text(sql))
@@ -289,7 +289,7 @@ async def optimize_database(db: Session = Depends(get_db)):
             results[name] = "created"
         except Exception as e:
             results[name] = f"error: {str(e)}"
-    
+
     # Run ANALYZE
     try:
         db.execute(text("ANALYZE"))
@@ -297,12 +297,106 @@ async def optimize_database(db: Session = Depends(get_db)):
         results["analyze"] = "complete"
     except Exception as e:
         results["analyze"] = f"error: {str(e)}"
-    
+
     return {
         "status": "ok",
         "indexes": results,
         "timestamp": datetime.utcnow().isoformat()
     }
+
+
+@router.get("/stats/db/fts-setup")
+async def setup_fts(db: Session = Depends(get_db)):
+    """
+    Create FTS5 virtual table for fast full-text search on award descriptions.
+    This significantly speeds up text searches compared to LIKE/ILIKE.
+    Run once after deployment or after major data imports.
+    """
+    results = {}
+
+    # Create FTS5 virtual table for award descriptions
+    try:
+        db.execute(text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS awards_fts USING fts5(
+                description,
+                content='awards',
+                content_rowid='id'
+            )
+        """))
+        db.commit()
+        results["fts_table"] = "created"
+    except Exception as e:
+        results["fts_table"] = f"error: {str(e)}"
+
+    # Create triggers to keep FTS in sync
+    triggers = [
+        ("awards_ai", """
+            CREATE TRIGGER IF NOT EXISTS awards_ai AFTER INSERT ON awards BEGIN
+                INSERT INTO awards_fts(rowid, description) VALUES (new.id, new.description);
+            END
+        """),
+        ("awards_ad", """
+            CREATE TRIGGER IF NOT EXISTS awards_ad AFTER DELETE ON awards BEGIN
+                INSERT INTO awards_fts(awards_fts, rowid, description) VALUES('delete', old.id, old.description);
+            END
+        """),
+        ("awards_au", """
+            CREATE TRIGGER IF NOT EXISTS awards_au AFTER UPDATE ON awards BEGIN
+                INSERT INTO awards_fts(awards_fts, rowid, description) VALUES('delete', old.id, old.description);
+                INSERT INTO awards_fts(rowid, description) VALUES (new.id, new.description);
+            END
+        """),
+    ]
+
+    for name, sql in triggers:
+        try:
+            db.execute(text(sql))
+            db.commit()
+            results[name] = "created"
+        except Exception as e:
+            results[name] = f"error: {str(e)}"
+
+    # Populate FTS table with existing data
+    try:
+        db.execute(text("""
+            INSERT OR REPLACE INTO awards_fts(rowid, description)
+            SELECT id, description FROM awards WHERE description IS NOT NULL
+        """))
+        db.commit()
+        results["fts_populate"] = "complete"
+    except Exception as e:
+        results["fts_populate"] = f"error: {str(e)}"
+
+    # Get count of indexed records
+    try:
+        count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
+        results["indexed_count"] = count
+    except Exception as e:
+        results["indexed_count"] = f"error: {str(e)}"
+
+    return {
+        "status": "ok",
+        "fts": results,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/stats/db/fts-status")
+async def fts_status(db: Session = Depends(get_db)):
+    """Check if FTS5 is set up and get index stats."""
+    try:
+        count = db.execute(text("SELECT COUNT(*) FROM awards_fts")).scalar()
+        return {
+            "fts_enabled": True,
+            "indexed_count": count,
+            "status": "active"
+        }
+    except Exception:
+        return {
+            "fts_enabled": False,
+            "indexed_count": 0,
+            "status": "not_configured"
+        }
 
 
 # =============================================================================
