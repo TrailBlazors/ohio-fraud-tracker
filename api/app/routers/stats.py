@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, text
+from sqlalchemy import func, desc, text, extract, cast, String
 
 from app.database import get_db
 from app.models import Award, Recipient, Agency, FraudFlag, CachedStats
@@ -843,14 +843,17 @@ async def get_agency_stats(db: Session = Depends(get_db)):
 @router.get("/stats/by-year")
 async def get_stats_by_year(db: Session = Depends(get_db)):
     """Get award totals by year"""
+    # Use extract() for cross-database compatibility (works on SQLite and PostgreSQL)
+    year_col = cast(extract('year', Award.award_date), String).label("year")
+
     query = db.query(
-        func.strftime("%Y", Award.award_date).label("year"),
+        year_col,
         func.count(Award.id).label("count"),
         func.sum(Award.amount).label("total")
     ).filter(Award.award_date.isnot(None))\
-     .group_by("year")\
-     .order_by(desc("year")).all()
-    
+     .group_by(year_col)\
+     .order_by(desc(year_col)).all()
+
     return [
         {"year": row.year, "count": row.count, "total": float(row.total or 0)}
         for row in query
@@ -882,14 +885,15 @@ async def get_data_coverage(db: Session = Depends(get_db)):
     cached = get_cached("data_coverage")
     if cached:
         return cached
-    
+
     sources = {}
     source_list = db.query(Award.source).distinct().all()
-    
+
     for (source,) in source_list:
+        # Use extract() for cross-database compatibility
         stats = db.query(
-            func.min(func.strftime("%Y", Award.award_date)).label("min_year"),
-            func.max(func.strftime("%Y", Award.award_date)).label("max_year"),
+            func.min(extract('year', Award.award_date)).label("min_year"),
+            func.max(extract('year', Award.award_date)).label("max_year"),
             func.count(Award.id).label("count"),
             func.sum(Award.amount).label("total")
         ).filter(
@@ -898,8 +902,8 @@ async def get_data_coverage(db: Session = Depends(get_db)):
         ).first()
         
         sources[source] = {
-            "min_year": stats.min_year,
-            "max_year": stats.max_year,
+            "min_year": str(int(stats.min_year)) if stats.min_year else None,
+            "max_year": str(int(stats.max_year)) if stats.max_year else None,
             "count": stats.count or 0,
             "total": float(stats.total or 0)
         }
