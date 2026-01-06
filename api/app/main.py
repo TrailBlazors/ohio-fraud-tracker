@@ -230,7 +230,7 @@ if STATIC_DIR.exists():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database and warm cache on startup"""
+    """Initialize database and warm cache on startup (only if cache is empty)"""
     try:
         init_db()
         db_info = get_db_info()
@@ -239,22 +239,31 @@ async def startup_event():
             print(f"✓ Serving frontend from {STATIC_DIR}")
         else:
             print(f"⚠ Static directory not found: {STATIC_DIR}")
-        
-        # Warm the cache on startup by calling the function directly
-        print("⏳ Warming cache...")
+
+        # Check if cache already exists before warming
         try:
             from app.database import SessionLocal
+            from app.models import CachedStats
             db = SessionLocal()
             try:
-                # Import and call the cache warming logic directly
-                from app.routers.stats import warm_cache
-                result = await warm_cache(db)
-                print(f"✓ Cache warmed: {result.get('cached', {})}")
+                # Check for key cached stats that indicate cache is populated
+                cache_count = db.query(CachedStats).filter(
+                    CachedStats.stat_key.in_(['total_awards', 'top_recipients_20', 'awards_by_source'])
+                ).count()
+
+                if cache_count >= 3:
+                    print(f"✓ Cache already populated ({cache_count} keys found), skipping warmup")
+                else:
+                    # Cache is empty or incomplete - warm it
+                    print(f"⏳ Cache incomplete ({cache_count}/3 keys), warming cache...")
+                    from app.routers.stats import warm_cache
+                    result = await warm_cache(db)
+                    print(f"✓ Cache warmed: {result.get('cached', {})}")
             finally:
                 db.close()
         except Exception as cache_err:
-            print(f"⚠ Cache warming failed (non-fatal): {cache_err}")
-            
+            print(f"⚠ Cache check/warming failed (non-fatal): {cache_err}")
+
     except Exception as e:
         print(f"✗ Startup error: {e}")
         import traceback
