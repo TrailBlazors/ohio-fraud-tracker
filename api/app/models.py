@@ -324,6 +324,64 @@ class CachedStats(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class OhioSOSBusiness(Base):
+    """
+    Ohio Secretary of State business filings.
+    Raw data from SOS bulk downloads - used to enrich recipients.
+    """
+    __tablename__ = "ohio_sos_businesses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # SOS identifiers
+    entity_number = Column(String(20), unique=True, nullable=False, index=True)
+    charter_number = Column(String(20), nullable=True)
+
+    # Business info
+    entity_name = Column(String(255), nullable=False)
+    entity_name_normalized = Column(String(255), index=True)  # For matching
+    entity_type = Column(String(50), nullable=True)  # LLC, CORP, etc.
+
+    # Status
+    status = Column(String(30), nullable=True, index=True)  # Active, Cancelled, Dissolved
+    status_date = Column(Date, nullable=True)
+
+    # Dates
+    formation_date = Column(Date, nullable=True)
+    expiration_date = Column(Date, nullable=True)
+
+    # Registered agent
+    agent_name = Column(String(255), nullable=True)
+    agent_address = Column(String(255), nullable=True)
+    agent_city = Column(String(100), nullable=True)
+    agent_state = Column(String(2), nullable=True)
+    agent_zip = Column(String(10), nullable=True)
+
+    # Principal office
+    principal_address = Column(String(255), nullable=True)
+    principal_city = Column(String(100), nullable=True, index=True)
+    principal_state = Column(String(2), nullable=True)
+    principal_zip = Column(String(10), nullable=True)
+
+    # Matching metadata
+    matched_recipient_id = Column(Integer, ForeignKey("recipients.id"), nullable=True, index=True)
+    match_confidence = Column(Float, nullable=True)  # 0.0 to 1.0
+    match_method = Column(String(50), nullable=True)  # exact_name, fuzzy_name, etc.
+
+    # Import metadata
+    source_file = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    matched_recipient = relationship("Recipient")
+
+    __table_args__ = (
+        Index("ix_sos_name_city", "entity_name_normalized", "principal_city"),
+        Index("ix_sos_status", "status"),
+    )
+
+
 class ExcludedEntity(Base):
     """
     OIG LEIE (List of Excluded Individuals/Entities)

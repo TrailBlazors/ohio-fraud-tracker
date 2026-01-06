@@ -8,6 +8,8 @@ This folder contains data files for the Ohio Fraud Tracker.
 data/
 ├── ohio_checkbook/     # Ohio state spending CSVs
 │   └── README.md       # Download instructions
+├── ohio-sos/           # Ohio Secretary of State business filings
+│   └── README.md       # Download instructions
 ├── usaspending/        # Federal spending (auto-downloaded via API)
 └── sba/                # SBA loan data
 ```
@@ -15,6 +17,7 @@ data/
 ## Database
 
 The SQLite database (`ohio_fraud_tracker.db`) is stored in `api/data/` and is not tracked in git.
+Production uses PostgreSQL (Neon).
 
 ## Data Sources
 
@@ -23,6 +26,7 @@ The SQLite database (`ohio_fraud_tracker.db`) is stored in `api/data/` and is no
 | USAspending.gov | Federal grants, loans, contracts | API (automated) |
 | Ohio Checkbook | State expenses, contracts | CSV download (manual) |
 | SBA | PPP/disaster loans | CSV download |
+| Ohio SOS | Business filings & status | CSV download (manual) |
 
 ## Import Commands
 
@@ -37,4 +41,7 @@ python -m scripts.import_ohio_checkbook --folder ..\data\ohio_checkbook\
 
 # SBA PPP data
 python -m scripts.import_sba_ppp --file ..\data\sba\ppp_loans.csv
+
+# Ohio Secretary of State business filings
+python -m scripts.import_ohio_sos --folder ..\data\ohio-sos\ --match
 ```

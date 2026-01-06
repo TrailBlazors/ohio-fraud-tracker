@@ -1112,5 +1112,127 @@ async def get_funding_by_county(db: Session = Depends(get_db)):
         db.commit()
     except:
         db.rollback()
-    
+
     return result
+
+
+# =============================================================================
+# OHIO SOS BUSINESS STATUS
+# =============================================================================
+
+@router.get("/stats/ohio-sos/status")
+async def ohio_sos_status(db: Session = Depends(get_db)):
+    """Get Ohio SOS data status and statistics."""
+    try:
+        from app.models import OhioSOSBusiness
+
+        total = db.query(func.count(OhioSOSBusiness.id)).scalar() or 0
+        matched = db.query(func.count(OhioSOSBusiness.id)).filter(
+            OhioSOSBusiness.matched_recipient_id.isnot(None)
+        ).scalar() or 0
+
+        # Status breakdown
+        status_counts = db.query(
+            OhioSOSBusiness.status,
+            func.count(OhioSOSBusiness.id)
+        ).group_by(OhioSOSBusiness.status).all()
+
+        # Match method breakdown
+        method_counts = db.query(
+            OhioSOSBusiness.match_method,
+            func.count(OhioSOSBusiness.id)
+        ).filter(
+            OhioSOSBusiness.match_method.isnot(None)
+        ).group_by(OhioSOSBusiness.match_method).all()
+
+        # Recipients with SOS data
+        recipients_with_sos = db.query(func.count(Recipient.id)).filter(
+            Recipient.business_status != "unknown",
+            Recipient.ohio_entity_number.isnot(None)
+        ).scalar() or 0
+
+        return {
+            "status": "ok",
+            "total_sos_records": total,
+            "matched_to_recipients": matched,
+            "unmatched": total - matched,
+            "match_rate": round(matched / total * 100, 1) if total > 0 else 0,
+            "recipients_with_sos_status": recipients_with_sos,
+            "by_status": {row[0]: row[1] for row in status_counts},
+            "by_match_method": {row[0]: row[1] for row in method_counts},
+        }
+    except Exception as e:
+        return {
+            "status": "not_configured",
+            "error": str(e),
+            "message": "Ohio SOS table not found. Run import first.",
+        }
+
+
+@router.post("/stats/ohio-sos/match")
+async def ohio_sos_run_matching(
+    min_confidence: float = 0.75,
+    update_recipients: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Run Ohio SOS matching against recipients.
+
+    - min_confidence: Minimum match confidence (0.0-1.0, default 0.75)
+    - update_recipients: Also update recipient business_status field
+    """
+    try:
+        from scripts.match_ohio_sos import match_all_recipients, update_recipient_status
+
+        # Run matching
+        results = match_all_recipients(db, min_confidence)
+
+        response = {
+            "status": "ok",
+            "total_processed": results["total"],
+            "matched": results["matched"],
+            "unmatched": results["unmatched"],
+            "by_method": dict(results["by_method"]),
+        }
+
+        # Update recipients if requested
+        if update_recipients:
+            update_results = update_recipient_status(db, min_confidence=0.9)
+            response["recipients_updated"] = update_results["updated"]
+
+        return response
+
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
+@router.post("/stats/ohio-sos/update-recipients")
+async def ohio_sos_update_recipients(
+    min_confidence: float = 0.9,
+    db: Session = Depends(get_db)
+):
+    """
+    Update recipient business_status from matched SOS records.
+    Only updates recipients with high-confidence matches.
+    """
+    try:
+        from scripts.match_ohio_sos import update_recipient_status
+
+        results = update_recipient_status(db, min_confidence)
+
+        return {
+            "status": "ok",
+            "recipients_updated": results["updated"],
+            "min_confidence_used": min_confidence,
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+        }
