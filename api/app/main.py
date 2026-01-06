@@ -252,10 +252,16 @@ async def startup_event():
                 ).count()
 
                 if cache_count >= 3:
-                    print(f"✓ Cache already populated ({cache_count} keys found), skipping warmup")
+                    print(f"")
+                    print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    print(f"⚡ FAST DEPLOY: Cache already populated ({cache_count} keys)")
+                    print(f"   Skipping cache warmup - using existing cached stats")
+                    print(f"   To force refresh: GET /api/stats/cache/warm")
+                    print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    print(f"")
                 else:
                     # Cache is empty or incomplete - warm it
-                    print(f"⏳ Cache incomplete ({cache_count}/3 keys), warming cache...")
+                    print(f"⏳ Cache incomplete ({cache_count}/3 keys), warming cache (this may take a minute)...")
                     from app.routers.stats import warm_cache
                     result = await warm_cache(db)
                     print(f"✓ Cache warmed: {result.get('cached', {})}")
