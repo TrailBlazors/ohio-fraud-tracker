@@ -25,7 +25,9 @@ const { title, description = "Track government grants, loans, and contracts in O
       <header class="header">
         <div class="container">
           <a href="/" class="logo">
-            <span class="logo-icon">📊</span>
+            <svg class="logo-icon" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path fill-rule="evenodd" d="M12.516 2.17a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 00.374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 00-.722-.516 11.209 11.209 0 01-7.877-3.08zm4.106 8.58a.75.75 0 00-1.06-1.06l-4.5 4.5-2.25-2.25a.75.75 0 00-1.06 1.06l2.78 2.78a.75.75 0 001.06 0l5.03-5.03z" clip-rule="evenodd"/>
+            </svg>
             <span class="logo-text">Ohio Funding Tracker</span>
           </a>
           <nav class="nav">
@@ -142,7 +144,9 @@ const { title, description = "Track government grants, loans, and contracts in O
       }
       
       .logo-icon {
-        font-size: 1.5rem;
+        width: 1.5rem;
+        height: 1.5rem;
+        color: var(--color-primary);
       }
       
       .nav {

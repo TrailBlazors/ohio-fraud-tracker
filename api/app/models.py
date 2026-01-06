@@ -93,6 +93,36 @@ class Recipient(Base):
     formation_date = Column(Date, nullable=True)
     sos_last_updated = Column(DateTime, nullable=True)
     
+    # IRS 990 data (from ProPublica Nonprofit Explorer)
+    is_nonprofit = Column(Boolean, default=False, index=True)
+    nonprofit_ein = Column(String(10), nullable=True)  # May differ from ein
+    tax_period = Column(String(6), nullable=True)  # YYYYMM of latest filing
+    form_type = Column(String(10), nullable=True)  # 990, 990EZ, 990PF
+    
+    # 990 Financial metrics (latest filing)
+    irs_total_revenue = Column(Float, nullable=True)
+    irs_total_expenses = Column(Float, nullable=True)
+    irs_net_assets = Column(Float, nullable=True)
+    irs_total_liabilities = Column(Float, nullable=True)
+    
+    # 990 Compensation data
+    irs_total_compensation = Column(Float, nullable=True)  # Total officer/employee comp
+    irs_top_salary = Column(Float, nullable=True)  # Highest individual salary
+    irs_num_employees = Column(Integer, nullable=True)
+    
+    # 990 Program efficiency
+    irs_program_expenses = Column(Float, nullable=True)  # Spent on actual programs
+    irs_admin_expenses = Column(Float, nullable=True)  # Administrative overhead
+    irs_fundraising_expenses = Column(Float, nullable=True)
+    
+    # Computed flags
+    irs_program_ratio = Column(Float, nullable=True)  # program_expenses / total_expenses
+    irs_comp_ratio = Column(Float, nullable=True)  # total_compensation / total_expenses
+    
+    # ProPublica metadata
+    propublica_id = Column(Integer, nullable=True, index=True)
+    irs_last_updated = Column(DateTime, nullable=True)
+    
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -105,6 +135,7 @@ class Recipient(Base):
         Index("ix_recipients_name_city", "name_normalized", "city"),
         Index("ix_recipients_status", "business_status"),
         Index("ix_recipients_naics", "naics_code"),
+        Index("ix_recipients_nonprofit", "is_nonprofit", "ein"),
     )
 
 

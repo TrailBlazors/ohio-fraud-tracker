@@ -127,8 +127,14 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
       
       const grid = document.getElementById('recipients-grid');
       grid.classList.remove('hidden');
-      grid.innerHTML = data.items.map(r => `
-        <a href="/recipients/view?id=${r.id}" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 hover:shadow-lg transition-shadow block">
+      grid.innerHTML = data.items.map(r => {
+        const recipientId = r.id || r.recipient_id;
+        if (!recipientId) {
+          console.warn('Missing recipient ID:', r);
+          return '';
+        }
+        return `
+        <a href="/recipients/view?id=${recipientId}" class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-5 hover:shadow-lg transition-shadow block">
           <div class="flex justify-between items-start mb-3">
             <div class="flex-1 min-w-0">
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white truncate" title="${r.name}">${r.name}</h3>
@@ -147,7 +153,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
             </svg>
           </div>
         </a>
-      `).join('');
+      `}).join('');
       
       const pagination = document.getElementById('pagination');
       if (data.has_next || data.has_prev) {

@@ -56,6 +56,9 @@ export function getStaticPaths() {
   </div>
 
   <script is:inline>
+    // API base URL - use localhost for dev, production API otherwise
+    const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+    
     // Get recipient ID from URL
     const pathParts = window.location.pathname.split('/');
     const recipientId = pathParts[pathParts.length - 1];
@@ -103,8 +106,8 @@ export function getStaticPaths() {
     async function loadRecipient() {
       try {
         const [recipientRes, awardsRes] = await Promise.all([
-          fetch(`/api/recipients/${recipientId}`),
-          fetch(`/api/recipients/${recipientId}/awards?page_size=50`)
+          fetch(`${apiBase}/api/recipients/${recipientId}`),
+          fetch(`${apiBase}/api/recipients/${recipientId}/awards?page_size=50`)
         ]);
         
         if (!recipientRes.ok) throw new Error('Recipient not found');

@@ -35,6 +35,91 @@ def set_cached(key: str, value: Any):
     _cache[key] = (time.time(), value)
 
 
+def _compute_nonprofit_health(recipient, total_grants: float) -> dict:
+    """Compute health indicators for a nonprofit based on 990 data"""
+    indicators = []
+    overall_score = 100  # Start at 100, deduct for issues
+    
+    # 1. Program ratio check (should be >65%)
+    if recipient.irs_program_ratio is not None:
+        if recipient.irs_program_ratio >= 0.75:
+            indicators.append({"name": "Program Spending", "status": "good", 
+                             "detail": f"{recipient.irs_program_ratio*100:.0f}% goes to programs"})
+        elif recipient.irs_program_ratio >= 0.65:
+            indicators.append({"name": "Program Spending", "status": "fair", 
+                             "detail": f"{recipient.irs_program_ratio*100:.0f}% goes to programs"})
+            overall_score -= 10
+        else:
+            indicators.append({"name": "Program Spending", "status": "poor", 
+                             "detail": f"Only {recipient.irs_program_ratio*100:.0f}% goes to programs"})
+            overall_score -= 25
+    
+    # 2. Compensation ratio check (should be <25%)
+    if recipient.irs_comp_ratio is not None:
+        if recipient.irs_comp_ratio <= 0.20:
+            indicators.append({"name": "Compensation", "status": "good", 
+                             "detail": f"{recipient.irs_comp_ratio*100:.0f}% to compensation"})
+        elif recipient.irs_comp_ratio <= 0.30:
+            indicators.append({"name": "Compensation", "status": "fair", 
+                             "detail": f"{recipient.irs_comp_ratio*100:.0f}% to compensation"})
+            overall_score -= 10
+        else:
+            indicators.append({"name": "Compensation", "status": "poor", 
+                             "detail": f"{recipient.irs_comp_ratio*100:.0f}% to compensation (high)"})
+            overall_score -= 20
+    
+    # 3. Revenue vs grants check
+    if recipient.irs_total_revenue and total_grants > 0:
+        ratio = total_grants / recipient.irs_total_revenue
+        if ratio <= 1.0:
+            indicators.append({"name": "Grant/Revenue Ratio", "status": "good", 
+                             "detail": "Grants align with reported revenue"})
+        elif ratio <= 1.5:
+            indicators.append({"name": "Grant/Revenue Ratio", "status": "fair", 
+                             "detail": f"Grants are {ratio:.1f}x reported revenue"})
+            overall_score -= 15
+        else:
+            indicators.append({"name": "Grant/Revenue Ratio", "status": "poor", 
+                             "detail": f"Grants are {ratio:.1f}x reported revenue (mismatch)"})
+            overall_score -= 30
+    
+    # 4. Filing freshness check
+    if recipient.tax_period:
+        try:
+            from datetime import datetime as dt
+            filing_year = int(recipient.tax_period[:4])
+            years_old = dt.now().year - filing_year
+            if years_old <= 2:
+                indicators.append({"name": "Filing Status", "status": "good", 
+                                 "detail": f"Filed for {filing_year}"})
+            elif years_old <= 3:
+                indicators.append({"name": "Filing Status", "status": "fair", 
+                                 "detail": f"Last filed for {filing_year} ({years_old} years ago)"})
+                overall_score -= 10
+            else:
+                indicators.append({"name": "Filing Status", "status": "poor", 
+                                 "detail": f"Stale: last filed for {filing_year} ({years_old} years ago)"})
+                overall_score -= 20
+        except:
+            pass
+    
+    # Determine overall status
+    if overall_score >= 80:
+        overall_status = "healthy"
+    elif overall_score >= 60:
+        overall_status = "fair"
+    elif overall_score >= 40:
+        overall_status = "concerning"
+    else:
+        overall_status = "poor"
+    
+    return {
+        "overall_status": overall_status,
+        "overall_score": max(0, overall_score),
+        "indicators": indicators
+    }
+
+
 # =============================================================================
 # TOP RECIPIENTS (RED FLAGS) - OPTIMIZED WITH CACHING
 # =============================================================================
@@ -151,6 +236,172 @@ async def autocomplete_recipients(
     ).order_by(Recipient.name).limit(limit).all()
     
     return [{"id": r.id, "name": r.name, "city": r.city} for r in results]
+
+
+@router.get("/recipients/nonprofits")
+async def get_nonprofits(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    health_status: Optional[str] = Query(None, description="Filter: healthy, fair, concerning, poor"),
+    has_flags: Optional[bool] = Query(None, description="Only show flagged nonprofits"),
+    min_grants: Optional[float] = Query(None, description="Minimum total grants received"),
+    db: Session = Depends(get_db)
+):
+    """
+    List nonprofits with 990 data and health indicators.
+    Cached for 1 hour.
+    """
+    
+    cache_key = f"nonprofits_{page}_{page_size}_{health_status}_{has_flags}_{min_grants}"
+    
+    # Check cache (shorter TTL for this endpoint - 1 hour)
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+    
+    # Build query
+    query = db.query(
+        Recipient,
+        func.coalesce(func.sum(Award.amount), 0).label("total_grants"),
+        func.count(Award.id).label("award_count")
+    ).outerjoin(
+        Award, Award.recipient_id == Recipient.id
+    ).filter(
+        Recipient.is_nonprofit == True
+    ).group_by(Recipient.id)
+    
+    if min_grants:
+        query = query.having(func.sum(Award.amount) >= min_grants)
+    
+    # Get total before pagination
+    total_count = db.query(func.count(Recipient.id)).filter(
+        Recipient.is_nonprofit == True
+    ).scalar() or 0
+    
+    # Order by total grants descending
+    query = query.order_by(desc("total_grants"))
+    
+    # Paginate
+    offset = (page - 1) * page_size
+    results = query.offset(offset).limit(page_size).all()
+    
+    items = []
+    for recipient, total_grants, award_count in results:
+        health = _compute_nonprofit_health(recipient, float(total_grants))
+        
+        # Filter by health status if specified
+        if health_status and health["overall_status"] != health_status:
+            continue
+        
+        items.append({
+            "id": recipient.id,
+            "name": recipient.name,
+            "city": recipient.city,
+            "ein": recipient.ein,
+            "total_grants": float(total_grants),
+            "award_count": award_count,
+            "tax_period": recipient.tax_period,
+            "form_type": recipient.form_type,
+            "irs_total_revenue": recipient.irs_total_revenue,
+            "irs_program_ratio": recipient.irs_program_ratio,
+            "irs_comp_ratio": recipient.irs_comp_ratio,
+            "health_status": health["overall_status"],
+            "health_score": health["overall_score"],
+            "propublica_url": f"https://projects.propublica.org/nonprofits/organizations/{recipient.ein}" if recipient.ein else None
+        })
+    
+    total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+    
+    response = {
+        "items": items,
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1
+    }
+    
+    # Cache for 1 hour (shorter than default)
+    _cache[cache_key] = (time.time(), response)
+    
+    return response
+
+
+@router.get("/recipients/nonprofits/stats")
+async def get_nonprofit_stats(
+    refresh: bool = Query(False),
+    db: Session = Depends(get_db)
+):
+    """
+    Get aggregate statistics for nonprofits with 990 data.
+    Cached for 24 hours.
+    """
+    
+    cache_key = "nonprofit_stats"
+    
+    if not refresh:
+        cached = get_cached(cache_key)
+        if cached:
+            return cached
+    
+    # Count nonprofits
+    total_nonprofits = db.query(func.count(Recipient.id)).filter(
+        Recipient.is_nonprofit == True
+    ).scalar() or 0
+    
+    nonprofits_with_990 = db.query(func.count(Recipient.id)).filter(
+        Recipient.is_nonprofit == True,
+        Recipient.irs_total_revenue.isnot(None)
+    ).scalar() or 0
+    
+    # Total grants to nonprofits
+    total_nonprofit_grants = db.query(func.sum(Award.amount)).join(
+        Recipient, Award.recipient_id == Recipient.id
+    ).filter(
+        Recipient.is_nonprofit == True
+    ).scalar() or 0
+    
+    # Average metrics
+    avg_program_ratio = db.query(func.avg(Recipient.irs_program_ratio)).filter(
+        Recipient.is_nonprofit == True,
+        Recipient.irs_program_ratio.isnot(None)
+    ).scalar()
+    
+    avg_comp_ratio = db.query(func.avg(Recipient.irs_comp_ratio)).filter(
+        Recipient.is_nonprofit == True,
+        Recipient.irs_comp_ratio.isnot(None)
+    ).scalar()
+    
+    # Count by health status (sample calculation)
+    # Note: This is an approximation - full calculation would be expensive
+    low_program = db.query(func.count(Recipient.id)).filter(
+        Recipient.is_nonprofit == True,
+        Recipient.irs_program_ratio < 0.65
+    ).scalar() or 0
+    
+    high_comp = db.query(func.count(Recipient.id)).filter(
+        Recipient.is_nonprofit == True,
+        Recipient.irs_comp_ratio > 0.25
+    ).scalar() or 0
+    
+    response = {
+        "total_nonprofits": total_nonprofits,
+        "nonprofits_with_990_data": nonprofits_with_990,
+        "coverage_percent": round(nonprofits_with_990 / total_nonprofits * 100, 1) if total_nonprofits else 0,
+        "total_grants_to_nonprofits": float(total_nonprofit_grants),
+        "averages": {
+            "program_ratio": round(float(avg_program_ratio), 3) if avg_program_ratio else None,
+            "compensation_ratio": round(float(avg_comp_ratio), 3) if avg_comp_ratio else None,
+        },
+        "concerns": {
+            "low_program_ratio": low_program,
+            "high_compensation": high_comp,
+        }
+    }
+    
+    set_cached(cache_key, response)
+    return response
 
 
 @router.get("/recipients/flagged")
@@ -364,7 +615,7 @@ async def list_recipients(
 
 @router.get("/recipients/{recipient_id}")
 async def get_recipient(recipient_id: int, db: Session = Depends(get_db)):
-    """Get detailed information for a single recipient"""
+    """Get detailed information for a single recipient including 990 data"""
     
     result = db.query(
         Recipient,
@@ -380,7 +631,8 @@ async def get_recipient(recipient_id: int, db: Session = Depends(get_db)):
     
     recipient, total_awards, total_amount = result
     
-    return {
+    # Build response
+    response = {
         "id": recipient.id,
         "name": recipient.name,
         "uei": recipient.uei,
@@ -396,8 +648,42 @@ async def get_recipient(recipient_id: int, db: Session = Depends(get_db)):
         "total_awards": total_awards,
         "total_amount": float(total_amount),
         "created_at": recipient.created_at,
-        "updated_at": recipient.updated_at
+        "updated_at": recipient.updated_at,
     }
+    
+    # Add 990 nonprofit data if available
+    if recipient.is_nonprofit:
+        response["nonprofit_data"] = {
+            "is_nonprofit": True,
+            "propublica_id": recipient.propublica_id,
+            "tax_period": recipient.tax_period,
+            "form_type": recipient.form_type,
+            "financials": {
+                "total_revenue": recipient.irs_total_revenue,
+                "total_expenses": recipient.irs_total_expenses,
+                "net_assets": recipient.irs_net_assets,
+                "total_liabilities": recipient.irs_total_liabilities,
+            },
+            "compensation": {
+                "total_compensation": recipient.irs_total_compensation,
+                "top_salary": recipient.irs_top_salary,
+                "num_employees": recipient.irs_num_employees,
+                "compensation_ratio": recipient.irs_comp_ratio,
+            },
+            "program_efficiency": {
+                "program_expenses": recipient.irs_program_expenses,
+                "admin_expenses": recipient.irs_admin_expenses,
+                "fundraising_expenses": recipient.irs_fundraising_expenses,
+                "program_ratio": recipient.irs_program_ratio,
+            },
+            "last_updated": recipient.irs_last_updated.isoformat() if recipient.irs_last_updated else None,
+            # Health indicators
+            "health_indicators": _compute_nonprofit_health(recipient, float(total_amount))
+        }
+    else:
+        response["nonprofit_data"] = None
+    
+    return response
 
 
 @router.get("/recipients/{recipient_id}/awards")

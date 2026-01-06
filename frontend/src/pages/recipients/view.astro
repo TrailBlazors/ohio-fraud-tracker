@@ -49,6 +49,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   </div>
 
   <script is:inline>
+    // API base URL - use localhost for dev, production API otherwise
+    const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+    
     // Get recipient ID from query params
     const urlParams = new URLSearchParams(window.location.search);
     const recipientId = urlParams.get('id');
@@ -104,8 +107,8 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       
       try {
         const [recipientRes, awardsRes] = await Promise.all([
-          fetch(`/api/recipients/${recipientId}`),
-          fetch(`/api/recipients/${recipientId}/awards?page_size=50`)
+          fetch(`${apiBase}/api/recipients/${recipientId}`),
+          fetch(`${apiBase}/api/recipients/${recipientId}/awards?page_size=50`)
         ]);
         
         if (!recipientRes.ok) throw new Error('Recipient not found');
@@ -121,6 +124,74 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         
         // Update page title
         document.title = `${recipient.name} - Ohio Fraud Tracker`;
+        
+        // Build nonprofit section if available
+        let nonprofitSection = '';
+        if (recipient.nonprofit_data) {
+          const np = recipient.nonprofit_data;
+          const health = np.health_indicators || {};
+          const healthColor = {
+            'healthy': 'green', 'fair': 'yellow', 'concerning': 'orange', 'poor': 'red'
+          }[health.overall_status] || 'gray';
+          
+          nonprofitSection = `
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <svg class="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.172 5.172a6 6 0 118.656 8.656 6 6 0 01-8.656-8.656z" clip-rule="evenodd"/>
+                  </svg>
+                  IRS Form 990 Data
+                </h3>
+                <div class="flex items-center gap-2">
+                  <span class="badge ${healthColor === 'green' ? 'badge-success' : healthColor === 'red' ? 'badge-danger' : 'badge-warning'}">
+                    ${health.overall_status || 'unknown'} (${health.overall_score || 0}/100)
+                  </span>
+                  ${np.propublica_id ? `<a href="https://projects.propublica.org/nonprofits/organizations/${recipient.ein}" target="_blank" rel="noopener" class="text-xs text-primary-600 hover:underline">View on ProPublica →</a>` : ''}
+                </div>
+              </div>
+              
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Total Revenue</p>
+                  <p class="text-lg font-bold text-gray-900 dark:text-white">${np.financials?.total_revenue ? formatCurrency(np.financials.total_revenue) : '—'}</p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Total Expenses</p>
+                  <p class="text-lg font-bold text-gray-900 dark:text-white">${np.financials?.total_expenses ? formatCurrency(np.financials.total_expenses) : '—'}</p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Net Assets</p>
+                  <p class="text-lg font-bold text-gray-900 dark:text-white">${np.financials?.net_assets ? formatCurrency(np.financials.net_assets) : '—'}</p>
+                </div>
+                <div class="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Form Type</p>
+                  <p class="text-lg font-bold text-gray-900 dark:text-white">${np.form_type || '—'}</p>
+                  <p class="text-xs text-gray-400">${np.tax_period ? 'FY ' + np.tax_period.slice(0,4) : ''}</p>
+                </div>
+              </div>
+              
+              ${health.indicators && health.indicators.length > 0 ? `
+                <div class="border-t border-gray-200 dark:border-gray-600 pt-4">
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Health Indicators</p>
+                  <div class="space-y-2">
+                    ${health.indicators.map(ind => `
+                      <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-600 dark:text-gray-400">${ind.name}</span>
+                        <span class="flex items-center gap-1">
+                          <span class="w-2 h-2 rounded-full ${ind.status === 'good' ? 'bg-green-500' : ind.status === 'fair' ? 'bg-yellow-500' : 'bg-red-500'}"></span>
+                          <span class="${ind.status === 'good' ? 'text-green-600 dark:text-green-400' : ind.status === 'fair' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}">
+                            ${ind.detail}
+                          </span>
+                        </span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
         
         // Render content
         contentDiv.innerHTML = `
@@ -156,6 +227,8 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
               </p>
             </div>
           </div>
+          
+          ${nonprofitSection}
           
           <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">

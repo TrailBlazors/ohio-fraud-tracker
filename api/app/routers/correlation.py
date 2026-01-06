@@ -27,6 +27,12 @@ class FlagType(Enum):
     INACTIVE_BUSINESS = "inactive_business"
     HIGH_VOLUME_RECIPIENT = "high_volume_recipient"
     MULTI_SOURCE_FUNDING = "multi_source_funding"
+    # IRS 990 flags
+    NONPROFIT_REVENUE_MISMATCH = "nonprofit_revenue_mismatch"  # Grants > reported revenue
+    NONPROFIT_HIGH_COMPENSATION = "nonprofit_high_compensation"  # >25% to compensation
+    NONPROFIT_LOW_PROGRAM_RATIO = "nonprofit_low_program_ratio"  # <65% to programs
+    NONPROFIT_STALE_FILING = "nonprofit_stale_filing"  # >3 years since filing
+    NONPROFIT_NO_FILING = "nonprofit_no_filing"  # Has EIN but no 990 found
 
 
 class Severity(Enum):
@@ -73,6 +79,9 @@ class CorrelationEngine:
         
         print("  Checking for high volume recipients...")
         self._check_high_volume_recipients()
+        
+        print("  Checking for nonprofit anomalies...")
+        self._check_nonprofit_anomalies()
         
         return self.flags
     
@@ -404,6 +413,102 @@ class CorrelationEngine:
                     "total_funding": r.total
                 }
             ))
+    
+    def _check_nonprofit_anomalies(self):
+        """Check nonprofits for 990 red flags"""
+        from datetime import datetime, timedelta
+        
+        # Only check recipients with 990 data loaded
+        nonprofits = self.db.query(
+            Recipient.id,
+            Recipient.name,
+            Recipient.ein,
+            Recipient.is_nonprofit,
+            Recipient.tax_period,
+            Recipient.irs_total_revenue,
+            Recipient.irs_total_expenses,
+            Recipient.irs_program_ratio,
+            Recipient.irs_comp_ratio,
+            Recipient.irs_total_compensation,
+            Recipient.irs_last_updated,
+            func.sum(Award.amount).label("total_awards")
+        ).outerjoin(
+            Award, Award.recipient_id == Recipient.id
+        ).filter(
+            Recipient.is_nonprofit == True
+        ).group_by(Recipient.id).all()
+        
+        current_year = datetime.now().year
+        
+        for np in nonprofits:
+            # 1. Revenue mismatch: grants received > reported revenue
+            if np.irs_total_revenue and np.total_awards:
+                if np.total_awards > np.irs_total_revenue * 1.5:  # >150% of revenue
+                    severity = Severity.CRITICAL if np.total_awards > np.irs_total_revenue * 3 else Severity.HIGH
+                    self.flags.append(Flag(
+                        flag_type=FlagType.NONPROFIT_REVENUE_MISMATCH,
+                        severity=severity,
+                        description=f"Grants (${np.total_awards:,.0f}) exceed 990 revenue (${np.irs_total_revenue:,.0f})",
+                        recipient_id=np.id,
+                        evidence={
+                            "total_grants_received": float(np.total_awards),
+                            "irs_reported_revenue": float(np.irs_total_revenue),
+                            "ratio": round(np.total_awards / np.irs_total_revenue, 2),
+                            "tax_period": np.tax_period
+                        }
+                    ))
+            
+            # 2. High compensation ratio (>25% of expenses)
+            if np.irs_comp_ratio and np.irs_comp_ratio > 0.25:
+                severity = Severity.HIGH if np.irs_comp_ratio > 0.40 else Severity.MEDIUM
+                self.flags.append(Flag(
+                    flag_type=FlagType.NONPROFIT_HIGH_COMPENSATION,
+                    severity=severity,
+                    description=f"High compensation: {np.irs_comp_ratio*100:.1f}% of expenses go to compensation",
+                    recipient_id=np.id,
+                    evidence={
+                        "compensation_ratio": float(np.irs_comp_ratio),
+                        "total_compensation": float(np.irs_total_compensation) if np.irs_total_compensation else None,
+                        "total_expenses": float(np.irs_total_expenses) if np.irs_total_expenses else None,
+                        "tax_period": np.tax_period
+                    }
+                ))
+            
+            # 3. Low program ratio (<65% to actual programs)
+            if np.irs_program_ratio and np.irs_program_ratio < 0.65:
+                severity = Severity.HIGH if np.irs_program_ratio < 0.50 else Severity.MEDIUM
+                self.flags.append(Flag(
+                    flag_type=FlagType.NONPROFIT_LOW_PROGRAM_RATIO,
+                    severity=severity,
+                    description=f"Low program spending: only {np.irs_program_ratio*100:.1f}% goes to programs",
+                    recipient_id=np.id,
+                    evidence={
+                        "program_ratio": float(np.irs_program_ratio),
+                        "total_expenses": float(np.irs_total_expenses) if np.irs_total_expenses else None,
+                        "tax_period": np.tax_period
+                    }
+                ))
+            
+            # 4. Stale filing (>3 years old)
+            if np.tax_period:
+                try:
+                    filing_year = int(np.tax_period[:4])
+                    years_old = current_year - filing_year
+                    if years_old >= 3:
+                        severity = Severity.HIGH if years_old >= 5 else Severity.MEDIUM
+                        self.flags.append(Flag(
+                            flag_type=FlagType.NONPROFIT_STALE_FILING,
+                            severity=severity,
+                            description=f"Stale 990 filing: last filed for {filing_year} ({years_old} years ago)",
+                            recipient_id=np.id,
+                            evidence={
+                                "tax_period": np.tax_period,
+                                "filing_year": filing_year,
+                                "years_since_filing": years_old
+                            }
+                        ))
+                except (ValueError, TypeError):
+                    pass
     
     def save_flags_to_db(self, flags: List[Flag]) -> int:
         """Save flags to database, avoiding duplicates"""
