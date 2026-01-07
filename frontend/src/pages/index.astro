@@ -128,19 +128,19 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
       </div>
     </div>
     
-    <a href="/flagged" class="stat-card hover:ring-2 hover:ring-red-500/50 transition-all">
+    <div class="stat-card">
       <div class="flex items-center">
-        <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-md shadow-red-500/20">
+        <div class="inline-flex flex-shrink-0 justify-center items-center w-10 h-10 sm:w-12 sm:h-12 text-white bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-md shadow-orange-500/20">
           <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
+            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"></path>
           </svg>
         </div>
         <div class="ms-3 sm:ms-4">
-          <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Flagged Issues</h3>
-          <p id="stat-total-flagged" class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">0</p>
+          <h3 class="mb-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Agencies</h3>
+          <p id="stat-total-agencies" class="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">0</p>
         </div>
       </div>
-    </a>
+    </div>
   </div>
 
   <!-- Data Sources Row -->
@@ -268,7 +268,7 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
       document.getElementById('stat-total-amount').textContent = '$' + formatNumber(stats.total_amount);
       document.getElementById('stat-total-awards').textContent = stats.total_awards.toLocaleString();
       document.getElementById('stat-total-recipients').textContent = stats.total_recipients.toLocaleString();
-      document.getElementById('stat-total-flagged').textContent = stats.total_flagged.toLocaleString();
+      document.getElementById('stat-total-agencies').textContent = (stats.total_agencies || 0).toLocaleString();
       
       // Show data sources if we have them
       if (stats.awards_by_source && Object.keys(stats.awards_by_source).length > 0) {
