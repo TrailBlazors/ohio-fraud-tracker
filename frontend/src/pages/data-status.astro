@@ -179,7 +179,11 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
                     <div class="text-right">
                       <p class="text-2xl font-bold text-gray-900 dark:text-white">${formatNumber(source.record_count)}</p>
                       <p class="text-sm text-gray-500 dark:text-gray-400">records</p>
-                      <p class="text-lg font-semibold text-green-600 dark:text-green-400 mt-1">${formatCurrency(source.total_amount)}</p>
+                      ${source.key === 'ohio_sos' ? `
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${formatNumber(source.matched_recipients || 0)} matched</p>
+                      ` : `
+                        <p class="text-lg font-semibold text-green-600 dark:text-green-400 mt-1">${formatCurrency(source.total_amount)}</p>
+                      `}
                     </div>
                   ` : ''}
                 </div>

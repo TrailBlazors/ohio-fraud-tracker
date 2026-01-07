@@ -11,7 +11,9 @@
       "WebFetch(domain:www.oversight.gov)",
       "WebFetch(domain:www.ohiosos.gov)",
       "WebSearch",
-      "Bash(python -m scripts.import_ohio_sos:*)"
+      "Bash(python -m scripts.import_ohio_sos:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)"
     ]
   }
 }
