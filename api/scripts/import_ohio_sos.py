@@ -71,6 +71,33 @@ def normalize_status(status_str: str) -> str:
     return STATUS_MAP.get(status_upper, status_str.lower()[:30])
 
 
+def parse_transaction_status(transaction_desc: str) -> str:
+    """Parse status from transaction description like 'OHIO LLC - CERTIFICATE OF DISSOLUTION'"""
+    if not transaction_desc:
+        return "unknown"
+
+    desc_upper = transaction_desc.upper()
+
+    if "DISSOLUTION" in desc_upper:
+        return "dissolved"
+    elif "CANCELLATION" in desc_upper or "CANCEL" in desc_upper:
+        return "cancelled"
+    elif "REINSTATEMENT" in desc_upper or "REINSTATE" in desc_upper:
+        return "active"
+    elif "REVIVAL" in desc_upper or "REVIVE" in desc_upper:
+        return "active"
+    elif "WITHDRAWAL" in desc_upper:
+        return "withdrawn"
+    elif "MERGER" in desc_upper or "MERGED" in desc_upper:
+        return "merged"
+    elif "CONVERSION" in desc_upper:
+        return "converted"
+    elif "TERMINATION" in desc_upper:
+        return "terminated"
+
+    return transaction_desc.lower()[:30]
+
+
 def parse_date(date_str: str) -> Optional[date]:
     """Parse date string from various formats"""
     if not date_str or date_str.strip() == "":
@@ -173,6 +200,9 @@ def find_column(row: Dict, *possible_names) -> str:
         for key in row.keys():
             if key.lower() == name.lower():
                 return row[key] or ""
+            # Try partial match (for columns like "CHARTER NUMBER")
+            if name.lower() in key.lower() or key.lower() in name.lower():
+                return row[key] or ""
     return ""
 
 
@@ -207,9 +237,9 @@ def import_sos_file(
                 # Find entity number (primary key)
                 entity_number = find_column(
                     row,
-                    "entity_number", "entity_no", "charter_number", "charter_no",
-                    "filing_number", "file_number", "registration_number", "reg_number",
-                    "business_number", "id", "entity_id"
+                    "charter_number", "charter number", "entity_number", "entity_no",
+                    "charter_no", "filing_number", "file_number", "registration_number",
+                    "reg_number", "business_number", "id", "entity_id", "document_number"
                 )
 
                 if not entity_number or entity_number.strip() == "":
@@ -222,8 +252,8 @@ def import_sos_file(
                 # Find entity name
                 entity_name = find_column(
                     row,
-                    "entity_name", "business_name", "name", "company_name",
-                    "legal_name", "filing_name", "organization_name"
+                    "business_name", "business name", "entity_name", "name",
+                    "company_name", "legal_name", "filing_name", "organization_name"
                 )
 
                 if not entity_name or entity_name.strip() == "":
@@ -237,8 +267,15 @@ def import_sos_file(
                 is_update = entity_number in existing_entity_numbers
 
                 # Parse other fields
-                status = normalize_status(find_column(row, "status", "entity_status", "business_status", "state"))
-                status_date = parse_date(find_column(row, "status_date", "status_change_date"))
+                # Check for transaction description (e.g., "OHIO LLC - CERTIFICATE OF DISSOLUTION")
+                transaction_desc = find_column(row, "transaction_code_desciption", "transaction code desciption",
+                                               "transaction_code_description", "transaction_description", "transaction")
+                if transaction_desc:
+                    status = parse_transaction_status(transaction_desc)
+                else:
+                    status = normalize_status(find_column(row, "status", "entity_status", "business_status"))
+
+                status_date = parse_date(find_column(row, "effective_date", "effective date", "status_date", "status_change_date"))
                 formation_date = parse_date(find_column(row, "formation_date", "date_formed", "date_of_formation", "incorporation_date", "filing_date", "original_date"))
                 expiration_date = parse_date(find_column(row, "expiration_date", "exp_date", "dissolution_date"))
 
@@ -251,11 +288,11 @@ def import_sos_file(
                 agent_state = find_column(row, "agent_state")[:2] if find_column(row, "agent_state") else None
                 agent_zip = find_column(row, "agent_zip", "agent_zipcode", "agent_postal")[:10] if find_column(row, "agent_zip", "agent_zipcode", "agent_postal") else None
 
-                # Principal office
-                principal_address = find_column(row, "principal_address", "principal_street", "business_address", "mailing_address", "address")[:255] if find_column(row, "principal_address", "principal_street", "business_address", "mailing_address", "address") else None
-                principal_city = find_column(row, "principal_city", "business_city", "city")[:100] if find_column(row, "principal_city", "business_city", "city") else None
-                principal_state = find_column(row, "principal_state", "business_state", "state")[:2] if find_column(row, "principal_state", "business_state") else "OH"
-                principal_zip = find_column(row, "principal_zip", "business_zip", "zip", "zipcode")[:10] if find_column(row, "principal_zip", "business_zip", "zip", "zipcode") else None
+                # Principal office (use filing address from Ohio SOS format)
+                principal_address = find_column(row, "filing_address_1", "filing address 1", "principal_address", "principal_street", "business_address", "mailing_address", "address")[:255] if find_column(row, "filing_address_1", "filing address 1", "principal_address", "principal_street", "business_address", "mailing_address", "address") else None
+                principal_city = find_column(row, "filing_city", "filing city", "principal_city", "business_city", "city")[:100] if find_column(row, "filing_city", "filing city", "principal_city", "business_city", "city") else None
+                principal_state = find_column(row, "filing_state", "filing state", "principal_state", "business_state")[:2] if find_column(row, "filing_state", "filing state", "principal_state", "business_state") else "OH"
+                principal_zip = find_column(row, "filing_zip", "filing zip", "principal_zip", "business_zip", "zip", "zipcode")[:10] if find_column(row, "filing_zip", "filing zip", "principal_zip", "business_zip", "zip", "zipcode") else None
 
                 if is_update:
                     # Update existing record
@@ -378,8 +415,11 @@ def main():
     if args.folder:
         folder = Path(args.folder)
         if folder.exists():
+            # Look for both .csv and .txt files
             csv_files = list(folder.glob("*.csv"))
+            txt_files = list(folder.glob("*.txt"))
             files_to_import.extend(csv_files)
+            files_to_import.extend(txt_files)
         else:
             print(f"Error: Folder not found: {args.folder}")
             sys.exit(1)

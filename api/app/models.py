@@ -382,6 +382,48 @@ class OhioSOSBusiness(Base):
     )
 
 
+class Tip(Base):
+    """
+    User-submitted tips about potential fraud, waste, or abuse.
+    """
+    __tablename__ = "tips"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Submission type
+    submission_type = Column(String(50), nullable=False, index=True)  # fraud_report, data_correction, etc.
+
+    # Basic info
+    subject = Column(String(200), nullable=False)
+    description = Column(Text, nullable=False)
+    state = Column(String(2), nullable=True, default="OH")
+
+    # Fraud types (stored as comma-separated for simplicity)
+    fraud_types = Column(String(200), nullable=True)  # ppp,eidl,childcare,etc.
+
+    # Related details
+    related_name = Column(String(200), nullable=True)
+    related_address = Column(String(300), nullable=True)
+    evidence = Column(String(500), nullable=True)
+
+    # Contact (optional, for follow-up)
+    email = Column(String(255), nullable=True)
+
+    # Tracking
+    status = Column(String(20), default="new", index=True)  # new, reviewing, resolved, dismissed
+    notes = Column(Text, nullable=True)  # Internal notes
+
+    # Metadata
+    ip_address = Column(String(45), nullable=True)  # For spam prevention
+    user_agent = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_tips_status_created", "status", "created_at"),
+    )
+
+
 class ExcludedEntity(Base):
     """
     OIG LEIE (List of Excluded Individuals/Entities)

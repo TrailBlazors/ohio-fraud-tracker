@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.database import get_db_info, init_db
-from app.routers import awards, recipients, stats, health, naics, correlation
+from app.routers import awards, recipients, stats, health, naics, correlation, tips
 
 # =============================================================================
 # APP CONFIGURATION
@@ -45,6 +45,7 @@ app.include_router(awards.router, prefix="/api", tags=["Awards"])
 app.include_router(recipients.router, prefix="/api", tags=["Recipients"])
 app.include_router(naics.router, prefix="/api", tags=["Business Types"])
 app.include_router(correlation.router, prefix="/api", tags=["Correlation & Fraud Detection"])
+app.include_router(tips.router, prefix="/api", tags=["Tips"])
 
 
 # =============================================================================

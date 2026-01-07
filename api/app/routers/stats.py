@@ -946,6 +946,11 @@ async def get_data_status(db: Session = Depends(get_db)):
             "name": "Ohio Checkbook",
             "description": "Ohio state spending data",
             "url": "https://checkbook.ohio.gov"
+        },
+        "ohio_sos": {
+            "name": "Ohio Secretary of State",
+            "description": "Business registration status (partial - monthly status changes only, not full database)",
+            "url": "https://www.ohiosos.gov/businesses/"
         }
     }
     
@@ -953,10 +958,51 @@ async def get_data_status(db: Session = Depends(get_db)):
     source_data = {}
     if source_cache and source_cache.stat_json:
         source_data = json.loads(source_cache.stat_json)
-    
+
+    # Check Ohio SOS separately (not in awards table)
+    ohio_sos_count = 0
+    ohio_sos_matched = 0
+    try:
+        from app.models import OhioSOSBusiness
+        ohio_sos_count = db.query(func.count(OhioSOSBusiness.id)).scalar() or 0
+        ohio_sos_matched = db.query(func.count(OhioSOSBusiness.id)).filter(
+            OhioSOSBusiness.matched_recipient_id.isnot(None)
+        ).scalar() or 0
+    except Exception:
+        pass
+
     sources = []
     for key, info in SOURCE_INFO.items():
-        if key in source_data:
+        # Special handling for Ohio SOS (not award data)
+        if key == "ohio_sos":
+            if ohio_sos_count > 0:
+                sources.append({
+                    "key": key,
+                    "name": info["name"],
+                    "description": info["description"],
+                    "url": info["url"],
+                    "status": "active",
+                    "record_count": ohio_sos_count,
+                    "total_amount": 0,
+                    "matched_recipients": ohio_sos_matched,
+                    "date_range": None,
+                    "by_year": [],
+                    "by_type": []
+                })
+            else:
+                sources.append({
+                    "key": key,
+                    "name": info["name"],
+                    "description": info["description"],
+                    "url": info["url"],
+                    "status": "pending",
+                    "record_count": 0,
+                    "total_amount": 0,
+                    "date_range": None,
+                    "by_year": [],
+                    "by_type": []
+                })
+        elif key in source_data:
             sources.append({
                 "key": key,
                 "name": info["name"],
