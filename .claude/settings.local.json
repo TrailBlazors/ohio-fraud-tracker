@@ -13,7 +13,10 @@
       "WebSearch",
       "Bash(python -m scripts.import_ohio_sos:*)",
       "Bash(curl:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(. ./set-neon-env.ps1)",
+      "Bash(export DATABASE_URL:*)",
+      "Bash(./venv/Scripts/python:*)"
     ]
   }
 }

@@ -214,6 +214,16 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
                     </p>
                   </div>
                 ` : ''}
+
+                ${source.key === 'ohio_checkbook' ? `
+                  <div class="mt-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p class="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Note:</strong> Ohio Checkbook data includes bulk payments where recipient names are masked for privacy
+                      (e.g., student scholarships). Multiple identical-looking transactions on the same date are typically
+                      separate payments to different individuals, not duplicates.
+                    </p>
+                  </div>
+                ` : ''}
               </div>
             `).join('')}
           </div>
