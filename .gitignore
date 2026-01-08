@@ -24,6 +24,7 @@ pip-wheel-metadata/
 .env
 .env.local
 *.env
+set-neon-env.ps1
 
 # IDE
 .idea/
