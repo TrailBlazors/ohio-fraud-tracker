@@ -137,6 +137,32 @@ async def page_search():
     return serve_page("search")
 
 
+@app.get("/favicon.svg")
+async def favicon_svg():
+    """Serve favicon"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    favicon_path = STATIC_DIR / "favicon.svg"
+    if favicon_path.is_file():
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="Not found")
+
+
+@app.get("/favicon.ico")
+async def favicon_ico():
+    """Serve favicon.ico (fallback to SVG)"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    # Try .ico first, then fall back to .svg
+    ico_path = STATIC_DIR / "favicon.ico"
+    if ico_path.is_file():
+        return FileResponse(ico_path, media_type="image/x-icon")
+    svg_path = STATIC_DIR / "favicon.svg"
+    if svg_path.is_file():
+        return FileResponse(svg_path, media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="Not found")
+
+
 @app.get("/robots.txt")
 async def robots_txt():
     """Serve robots.txt for search engines"""
