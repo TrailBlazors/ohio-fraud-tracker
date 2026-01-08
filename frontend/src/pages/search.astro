@@ -157,8 +157,8 @@ const q = url.searchParams.get('q') || '';
             </td></tr>
           `;
         } else {
-          document.getElementById('results-count').textContent = 
-            `Found ${data.total_count} results for "${query}"${data.has_more ? ' (showing top 50)' : ''}`;
+          document.getElementById('results-count').textContent =
+            `Found ${data.total_count.toLocaleString()} results for "${query}"${data.has_more ? ' (showing top 50)' : ''}`;
           
           document.getElementById('results-body').innerHTML = data.items.map(award => `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">

@@ -338,7 +338,14 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
         colors: ['#10b981', '#34d399', '#6ee7b7', '#8b5cf6', '#3b82f6', '#0ea5e9', '#14b8a6', '#f59e0b', '#ef4444'],
         legend: { position: 'bottom', labels: { colors: '#9ca3af' } },
         plotOptions: { pie: { donut: { size: '60%' } } },
-        dataLabels: { enabled: false }
+        dataLabels: { enabled: false },
+        tooltip: {
+          y: {
+            formatter: function(value) {
+              return value.toLocaleString() + ' awards';
+            }
+          }
+        }
       });
       chart.render();
     } catch (err) {

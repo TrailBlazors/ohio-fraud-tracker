@@ -251,7 +251,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Total Awards</p>
-              <p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">${recipient.total_awards}</p>
+              <p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">${recipient.total_awards.toLocaleString()}</p>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <p class="text-sm text-gray-500 dark:text-gray-400 uppercase font-medium">Business Status</p>
@@ -355,7 +355,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             </div>
             ${awards.total_count > 50 ? `
               <div class="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
-                <p class="text-sm text-gray-500 dark:text-gray-400">Showing 50 of ${awards.total_count} awards</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Showing 50 of ${awards.total_count.toLocaleString()} awards</p>
               </div>
             ` : ''}
           </div>
