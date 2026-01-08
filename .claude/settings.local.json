@@ -16,7 +16,8 @@
       "Bash(python:*)",
       "Bash(. ./set-neon-env.ps1)",
       "Bash(export DATABASE_URL:*)",
-      "Bash(./venv/Scripts/python:*)"
+      "Bash(./venv/Scripts/python:*)",
+      "Bash(export ANTHROPIC_API_KEY=\"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\")"
     ]
   }
 }

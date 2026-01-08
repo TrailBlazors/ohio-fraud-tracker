@@ -50,6 +50,17 @@ def compute_flags_hash(flags: list) -> str:
     return hashlib.sha256(",".join(flag_ids).encode()).hexdigest()[:16]
 
 
+def severity_to_score(severity: str) -> int:
+    """Convert severity string to numeric score."""
+    mapping = {
+        "critical": 10,
+        "high": 8,
+        "medium": 5,
+        "low": 3,
+    }
+    return mapping.get(str(severity).lower(), 0)
+
+
 def is_high_risk(recipient_id: int, db: Session) -> dict:
     """
     Check if recipient qualifies for AI analysis.
@@ -64,7 +75,8 @@ def is_high_risk(recipient_id: int, db: Session) -> dict:
     if not flags:
         return {"eligible": False, "reason": "No unresolved flags"}
 
-    max_severity = max(f.severity for f in flags)
+    max_severity_score = max(severity_to_score(f.severity) for f in flags)
+    max_severity_name = max(flags, key=lambda f: severity_to_score(f.severity)).severity
     flag_count = len(flags)
 
     # Get total funding
@@ -77,14 +89,14 @@ def is_high_risk(recipient_id: int, db: Session) -> dict:
     is_dissolved = recipient and recipient.business_status in ("dissolved", "cancelled", "inactive")
 
     # Eligibility criteria
-    if max_severity >= MIN_SEVERITY_FOR_AUTO:
-        return {"eligible": True, "reason": f"High severity flag ({max_severity}/10)"}
+    if max_severity_score >= MIN_SEVERITY_FOR_AUTO:
+        return {"eligible": True, "reason": f"Has {max_severity_name} severity flag"}
     if flag_count >= MIN_FLAGS_FOR_AUTO:
         return {"eligible": True, "reason": f"Multiple flags ({flag_count})"}
     if is_dissolved and total_amount >= 100000:
         return {"eligible": True, "reason": f"Dissolved business with ${total_amount:,.0f} in funding"}
 
-    return {"eligible": False, "reason": f"Does not meet risk threshold (severity {max_severity}, {flag_count} flags)"}
+    return {"eligible": False, "reason": f"Does not meet risk threshold ({max_severity_name} severity, {flag_count} flags)"}
 
 
 def gather_recipient_context(recipient_id: int, db: Session) -> dict:
