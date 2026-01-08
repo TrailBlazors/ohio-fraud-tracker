@@ -743,11 +743,11 @@ async def get_recipient_awards(
     if not recipient:
         raise HTTPException(status_code=404, detail="Recipient not found")
     
-    # Query awards with agency
+    # Query awards with agency (most recent first)
     query = db.query(Award, Agency)\
         .outerjoin(Agency, Award.agency_id == Agency.id)\
         .filter(Award.recipient_id == recipient_id)\
-        .order_by(desc(Award.amount))
+        .order_by(desc(Award.award_date))
     
     total_count = query.count()
     offset = (page - 1) * page_size
