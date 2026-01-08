@@ -369,9 +369,9 @@ async def ai_status(db: Session = Depends(get_db)):
     total_cached = db.query(func.count(AIAnalysis.id)).scalar() or 0
     total_tokens = db.query(func.sum(AIAnalysis.tokens_used)).scalar() or 0
 
-    # Count eligible recipients
+    # Count eligible recipients (critical or high severity)
     high_severity_count = db.query(func.count(func.distinct(FraudFlag.recipient_id))).filter(
-        FraudFlag.severity >= MIN_SEVERITY_FOR_AUTO,
+        FraudFlag.severity.in_(["critical", "high"]),
         FraudFlag.is_resolved == False
     ).scalar() or 0
 
@@ -384,6 +384,6 @@ async def ai_status(db: Session = Depends(get_db)):
         "total_cached_analyses": total_cached,
         "total_tokens_used": total_tokens,
         "eligible_recipients": high_severity_count,
-        "min_severity_threshold": MIN_SEVERITY_FOR_AUTO,
+        "min_severity_threshold": "critical or high",
         "min_flags_threshold": MIN_FLAGS_FOR_AUTO
     }
