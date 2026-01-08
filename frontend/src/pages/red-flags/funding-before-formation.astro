@@ -1,0 +1,336 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout
+  title="Funding Before Formation - Ohio Fraud Tracker"
+  description="Recipients who received government funding before their business was legally formed. A critical fraud indicator that warrants investigation."
+  keywords="Ohio fraud detection, PPP fraud, grant fraud, business formation date, funding before formation"
+>
+  <div class="mb-6">
+    <div class="flex items-center gap-3 mb-2">
+      <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900">
+        <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+        </svg>
+      </span>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Funding Before Formation</h1>
+        <p class="text-gray-500 dark:text-gray-400">Awards dated before the business was legally formed</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Alert (hidden by default) -->
+  <div id="error-alert" class="hidden p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+    <span class="font-medium">Error:</span> <span id="error-message"></span>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loading-state" class="text-center py-12">
+    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    <p class="mt-2 text-gray-500 dark:text-gray-400">Analyzing funding dates...</p>
+  </div>
+
+  <!-- Content (hidden until loaded) -->
+  <div id="content" class="hidden">
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Recipients Affected</p>
+        <p id="total-recipients" class="text-2xl font-bold text-red-600 dark:text-red-400">0</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total Amount at Risk</p>
+        <p id="total-amount" class="text-2xl font-bold text-amber-600 dark:text-amber-400">$0</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Avg Days Before Formation</p>
+        <p id="avg-days" class="text-2xl font-bold text-purple-600 dark:text-purple-400">0</p>
+      </div>
+    </div>
+
+    <!-- Why This Matters -->
+    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+        </svg>
+        <div>
+          <h3 class="font-semibold text-red-800 dark:text-red-200">Critical Fraud Indicator</h3>
+          <p class="text-sm text-red-700 dark:text-red-300 mt-1">
+            A business receiving government funds before it legally exists is a serious red flag.
+            This could indicate backdated paperwork, identity fraud, or fictitious entities.
+            Formation dates come from Ohio Secretary of State records.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source Breakdown -->
+    <div id="source-breakdown" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
+      <div class="flex flex-wrap gap-4 items-center">
+        <div>
+          <label for="source-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data Source</label>
+          <select id="source-filter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">All Sources</option>
+            <option value="usaspending">USAspending</option>
+            <option value="sba_ppp">SBA PPP Loans</option>
+            <option value="ohio_checkbook">Ohio Checkbook</option>
+          </select>
+        </div>
+        <div>
+          <label for="min-days-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Days Before</label>
+          <select id="min-days-filter" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="0">Any</option>
+            <option value="30">30+ days</option>
+            <option value="180">6+ months</option>
+            <option value="365">1+ year</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button id="apply-filters" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors">
+            Apply Filters
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+        <p id="results-count" class="text-sm text-gray-500 dark:text-gray-400">Loading results...</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+            <tr class="text-gray-600 dark:text-gray-300">
+              <th class="px-4 py-3">Recipient</th>
+              <th class="px-4 py-3 w-28 text-center">Formation</th>
+              <th class="px-4 py-3 w-28 text-center">First Award</th>
+              <th class="px-4 py-3 w-24 text-center">Gap</th>
+              <th class="px-4 py-3 w-20 text-center">Awards</th>
+              <th class="px-4 py-3 w-32 text-right">Amount</th>
+              <th class="px-4 py-3 w-24 text-center">Severity</th>
+            </tr>
+          </thead>
+          <tbody id="results-table" class="divide-y divide-gray-200 dark:divide-gray-700">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="hidden flex justify-between items-center mt-4">
+      <p id="page-info" class="text-sm text-gray-500 dark:text-gray-400"></p>
+      <div class="flex gap-2">
+        <button id="prev-btn" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Previous
+        </button>
+        <button id="next-btn" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Note -->
+  <p class="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
+    Formation dates from Ohio Secretary of State. Award dates from USAspending.gov, SBA, and Ohio Checkbook.
+  </p>
+</DashboardLayout>
+
+<style>
+  :global(html.dark) table tbody td {
+    color: #d1d5db !important;
+  }
+  :global(html.dark) table tbody td .font-medium {
+    color: #ffffff !important;
+  }
+</style>
+
+<script>
+  const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+  let currentPage = 0;
+  const pageSize = 50;
+
+  function formatCurrency(amount) {
+    if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(2)}B`;
+    if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`;
+    if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`;
+    return `$${amount.toLocaleString()}`;
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric'
+    });
+  }
+
+  function getSeverityBadge(severity) {
+    const styles = {
+      critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+    };
+    return `<span class="px-2 py-1 text-xs font-medium rounded ${styles[severity] || styles.low}">${severity}</span>`;
+  }
+
+  function getSourceLabel(source) {
+    const labels = {
+      usaspending: 'USAspending',
+      sba_ppp: 'PPP Loans',
+      ohio_checkbook: 'Ohio Checkbook'
+    };
+    return labels[source] || source;
+  }
+
+  async function loadData() {
+    const loadingEl = document.getElementById('loading-state');
+    const contentEl = document.getElementById('content');
+    const errorEl = document.getElementById('error-alert');
+    const errorMsg = document.getElementById('error-message');
+
+    const source = document.getElementById('source-filter').value;
+    const minDays = document.getElementById('min-days-filter').value;
+    const offset = currentPage * pageSize;
+
+    const params = new URLSearchParams();
+    if (source) params.set('source', source);
+    if (minDays) params.set('min_days', minDays);
+    params.set('limit', pageSize);
+    params.set('offset', offset);
+
+    try {
+      loadingEl.classList.remove('hidden');
+      contentEl.classList.add('hidden');
+      errorEl.classList.add('hidden');
+
+      const response = await fetch(`${apiBase}/api/correlation/funding-before-formation?${params}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to load data');
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Update summary cards
+      document.getElementById('total-recipients').textContent = data.summary.total_recipients.toLocaleString();
+      document.getElementById('total-amount').textContent = formatCurrency(data.summary.total_amount_at_risk);
+      document.getElementById('avg-days').textContent = data.summary.avg_days_before_formation.toLocaleString() + ' days';
+
+      // Build source breakdown cards
+      const sourceBreakdown = document.getElementById('source-breakdown');
+      sourceBreakdown.innerHTML = data.by_source.map(s => `
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border-l-4 ${
+          s.source === 'sba_ppp' ? 'border-blue-500' :
+          s.source === 'usaspending' ? 'border-green-500' : 'border-amber-500'
+        }">
+          <p class="text-sm text-gray-500 dark:text-gray-400">${getSourceLabel(s.source)}</p>
+          <p class="text-xl font-bold text-gray-900 dark:text-white">${s.recipient_count.toLocaleString()} recipients</p>
+          <p class="text-sm text-gray-600 dark:text-gray-400">${formatCurrency(s.total_amount)}</p>
+        </div>
+      `).join('');
+
+      // Update results count
+      document.getElementById('results-count').textContent =
+        `Showing ${offset + 1}-${Math.min(offset + pageSize, data.total_count)} of ${data.total_count.toLocaleString()} recipients`;
+
+      // Build table
+      const tbody = document.getElementById('results-table');
+      if (data.items.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+              No results found matching your criteria
+            </td>
+          </tr>
+        `;
+      } else {
+        tbody.innerHTML = data.items.map(item => `
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="window.location.href='/recipients/view?id=${item.recipient_id}'">
+            <td class="px-4 py-3">
+              <div class="font-medium text-gray-900 dark:text-white">${item.name}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">${item.city || 'Ohio'} • ${item.business_type || 'Unknown type'}</div>
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300 whitespace-nowrap">
+              ${formatDate(item.formation_date)}
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300 whitespace-nowrap">
+              ${formatDate(item.first_award_date)}
+            </td>
+            <td class="px-4 py-3 text-center">
+              <span class="font-semibold ${item.days_before_formation > 365 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}">
+                ${item.days_before_formation.toLocaleString()} days
+              </span>
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">
+              ${item.awards_before_formation}
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+              ${formatCurrency(item.total_before_formation)}
+            </td>
+            <td class="px-4 py-3 text-center">
+              ${getSeverityBadge(item.severity)}
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      // Update pagination
+      const paginationEl = document.getElementById('pagination');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const pageInfo = document.getElementById('page-info');
+
+      if (data.total_count > pageSize) {
+        paginationEl.classList.remove('hidden');
+        const totalPages = Math.ceil(data.total_count / pageSize);
+        pageInfo.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+        prevBtn.disabled = currentPage === 0;
+        nextBtn.disabled = !data.has_more;
+      } else {
+        paginationEl.classList.add('hidden');
+      }
+
+      loadingEl.classList.add('hidden');
+      contentEl.classList.remove('hidden');
+
+    } catch (err) {
+      loadingEl.classList.add('hidden');
+      errorEl.classList.remove('hidden');
+      errorMsg.textContent = err.message || 'Failed to load data';
+    }
+  }
+
+  // Event listeners
+  document.getElementById('apply-filters').addEventListener('click', () => {
+    currentPage = 0;
+    loadData();
+  });
+
+  document.getElementById('prev-btn').addEventListener('click', () => {
+    if (currentPage > 0) {
+      currentPage--;
+      loadData();
+    }
+  });
+
+  document.getElementById('next-btn').addEventListener('click', () => {
+    currentPage++;
+    loadData();
+  });
+
+  // Initial load
+  loadData();
+</script>

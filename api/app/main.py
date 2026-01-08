@@ -204,11 +204,24 @@ async def page_red_flags_top_recipients():
     """Serve top recipients analysis page"""
     if not STATIC_DIR.exists():
         raise HTTPException(status_code=404, detail="Frontend not available")
-    
+
     index_path = STATIC_DIR / "red-flags" / "top-recipients" / "index.html"
     if index_path.is_file():
         return FileResponse(index_path, media_type="text/html")
-    
+
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
+@app.get("/red-flags/funding-before-formation")
+async def page_red_flags_funding_before_formation():
+    """Serve funding before formation analysis page"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend not available")
+
+    index_path = STATIC_DIR / "red-flags" / "funding-before-formation" / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path, media_type="text/html")
+
     raise HTTPException(status_code=404, detail="Page not found")
 
 

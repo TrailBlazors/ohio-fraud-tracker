@@ -27,6 +27,7 @@ class FlagType(Enum):
     INACTIVE_BUSINESS = "inactive_business"
     HIGH_VOLUME_RECIPIENT = "high_volume_recipient"
     MULTI_SOURCE_FUNDING = "multi_source_funding"
+    FUNDING_BEFORE_FORMATION = "funding_before_formation"  # Award before business formed
     # IRS 990 flags
     NONPROFIT_REVENUE_MISMATCH = "nonprofit_revenue_mismatch"  # Grants > reported revenue
     NONPROFIT_HIGH_COMPENSATION = "nonprofit_high_compensation"  # >25% to compensation
@@ -82,7 +83,10 @@ class CorrelationEngine:
         
         print("  Checking for nonprofit anomalies...")
         self._check_nonprofit_anomalies()
-        
+
+        print("  Checking for funding before formation...")
+        self._check_funding_before_formation()
+
         return self.flags
     
     def _check_duplicate_awards(self):
@@ -509,7 +513,79 @@ class CorrelationEngine:
                         ))
                 except (ValueError, TypeError):
                     pass
-    
+
+    def _check_funding_before_formation(self):
+        """Find awards dated before the business was legally formed"""
+
+        # Query recipients with formation_date and awards before that date
+        query = text("""
+            SELECT
+                r.id as recipient_id,
+                r.name,
+                r.formation_date,
+                r.business_status,
+                a.id as award_id,
+                a.source,
+                a.amount,
+                a.award_date,
+                a.description,
+                (r.formation_date - a.award_date) as days_before
+            FROM recipients r
+            JOIN awards a ON a.recipient_id = r.id
+            WHERE r.formation_date IS NOT NULL
+              AND a.award_date IS NOT NULL
+              AND a.award_date < r.formation_date
+              AND a.amount > 1000
+            ORDER BY (r.formation_date - a.award_date) DESC, a.amount DESC
+            LIMIT 500
+        """)
+
+        try:
+            results = self.db.execute(query).fetchall()
+        except Exception as e:
+            print(f"Funding before formation query error: {e}")
+            return
+
+        # Group by recipient to avoid duplicate flags
+        seen_recipients = set()
+
+        for row in results:
+            # Skip if we already flagged this recipient
+            if row.recipient_id in seen_recipients:
+                continue
+            seen_recipients.add(row.recipient_id)
+
+            days_before = row.days_before
+            if hasattr(days_before, 'days'):
+                days_before = days_before.days
+
+            # Determine severity based on gap size
+            if days_before > 365:  # More than 1 year before formation
+                severity = Severity.CRITICAL
+            elif days_before > 180:  # 6 months to 1 year
+                severity = Severity.HIGH
+            elif days_before > 30:  # 1-6 months
+                severity = Severity.MEDIUM
+            else:
+                severity = Severity.LOW
+
+            self.flags.append(Flag(
+                flag_type=FlagType.FUNDING_BEFORE_FORMATION,
+                severity=severity,
+                description=f"Award received {days_before} days before business formation",
+                recipient_id=row.recipient_id,
+                award_id=row.award_id,
+                evidence={
+                    "formation_date": str(row.formation_date),
+                    "award_date": str(row.award_date),
+                    "days_before_formation": int(days_before),
+                    "amount": float(row.amount),
+                    "source": row.source,
+                    "business_status": row.business_status,
+                    "description": (row.description or "")[:200]
+                }
+            ))
+
     def save_flags_to_db(self, flags: List[Flag]) -> int:
         """Save flags to database, avoiding duplicates"""
         saved = 0
@@ -998,3 +1074,167 @@ async def verify_recipient(
         ],
         "verification_status": "verified" if recipient.sos_last_updated else "pending"
     }
+
+
+@router.get("/correlation/funding-before-formation")
+async def get_funding_before_formation(
+    source: Optional[str] = Query(None, description="Filter by source (usaspending, sba_ppp, ohio_checkbook)"),
+    min_days: int = Query(0, ge=0, description="Minimum days before formation"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """
+    Get recipients who received awards before their business was legally formed.
+    Returns detailed analysis including timeline and amounts.
+    """
+    # Build base query
+    base_query = text("""
+        SELECT
+            r.id as recipient_id,
+            r.name,
+            r.city,
+            r.formation_date,
+            r.business_status,
+            r.business_type,
+            MIN(a.award_date) as first_award_date,
+            MAX(a.award_date) as last_award_before,
+            COUNT(a.id) as awards_before_formation,
+            SUM(a.amount) as total_before_formation,
+            (r.formation_date - MIN(a.award_date)) as max_days_before
+        FROM recipients r
+        JOIN awards a ON a.recipient_id = r.id
+        WHERE r.formation_date IS NOT NULL
+          AND a.award_date IS NOT NULL
+          AND a.award_date < r.formation_date
+          AND a.amount > 0
+          {source_filter}
+        GROUP BY r.id
+        HAVING (r.formation_date - MIN(a.award_date)) >= :min_days
+        ORDER BY (r.formation_date - MIN(a.award_date)) DESC, SUM(a.amount) DESC
+        LIMIT :limit OFFSET :offset
+    """.format(source_filter="AND a.source = :source" if source else ""))
+
+    # Count query
+    count_query = text("""
+        SELECT COUNT(*) FROM (
+            SELECT r.id
+            FROM recipients r
+            JOIN awards a ON a.recipient_id = r.id
+            WHERE r.formation_date IS NOT NULL
+              AND a.award_date IS NOT NULL
+              AND a.award_date < r.formation_date
+              AND a.amount > 0
+              {source_filter}
+            GROUP BY r.id
+            HAVING (r.formation_date - MIN(a.award_date)) >= :min_days
+        ) subq
+    """.format(source_filter="AND a.source = :source" if source else ""))
+
+    # Summary stats query
+    summary_query = text("""
+        SELECT
+            COUNT(DISTINCT r.id) as total_recipients,
+            SUM(a.amount) as total_amount,
+            AVG(r.formation_date - a.award_date) as avg_days_before
+        FROM recipients r
+        JOIN awards a ON a.recipient_id = r.id
+        WHERE r.formation_date IS NOT NULL
+          AND a.award_date IS NOT NULL
+          AND a.award_date < r.formation_date
+          AND a.amount > 0
+          {source_filter}
+    """.format(source_filter="AND a.source = :source" if source else ""))
+
+    # By source breakdown
+    by_source_query = text("""
+        SELECT
+            a.source,
+            COUNT(DISTINCT r.id) as recipient_count,
+            SUM(a.amount) as total_amount
+        FROM recipients r
+        JOIN awards a ON a.recipient_id = r.id
+        WHERE r.formation_date IS NOT NULL
+          AND a.award_date IS NOT NULL
+          AND a.award_date < r.formation_date
+          AND a.amount > 0
+        GROUP BY a.source
+        ORDER BY SUM(a.amount) DESC
+    """)
+
+    params = {"min_days": min_days, "limit": limit, "offset": offset}
+    if source:
+        params["source"] = source
+
+    try:
+        # Execute queries
+        results = db.execute(base_query, params).fetchall()
+        total_count = db.execute(count_query, params).scalar() or 0
+        summary = db.execute(summary_query, params).fetchone()
+        by_source = db.execute(by_source_query).fetchall()
+
+        # Format results
+        items = []
+        for row in results:
+            days_before = row.max_days_before
+            if hasattr(days_before, 'days'):
+                days_before = days_before.days
+
+            # Determine severity
+            if days_before > 365:
+                severity = "critical"
+            elif days_before > 180:
+                severity = "high"
+            elif days_before > 30:
+                severity = "medium"
+            else:
+                severity = "low"
+
+            items.append({
+                "recipient_id": row.recipient_id,
+                "name": row.name,
+                "city": row.city,
+                "formation_date": str(row.formation_date) if row.formation_date else None,
+                "first_award_date": str(row.first_award_date) if row.first_award_date else None,
+                "last_award_before": str(row.last_award_before) if row.last_award_before else None,
+                "days_before_formation": int(days_before) if days_before else 0,
+                "awards_before_formation": row.awards_before_formation,
+                "total_before_formation": float(row.total_before_formation or 0),
+                "business_status": row.business_status,
+                "business_type": row.business_type,
+                "severity": severity
+            })
+
+        # Format summary
+        avg_days = summary.avg_days_before if summary else 0
+        if hasattr(avg_days, 'days'):
+            avg_days = avg_days.days
+
+        return {
+            "summary": {
+                "total_recipients": int(summary.total_recipients) if summary and summary.total_recipients else 0,
+                "total_amount_at_risk": float(summary.total_amount) if summary and summary.total_amount else 0,
+                "avg_days_before_formation": int(avg_days) if avg_days else 0
+            },
+            "by_source": [
+                {
+                    "source": s.source,
+                    "recipient_count": s.recipient_count,
+                    "total_amount": float(s.total_amount or 0)
+                }
+                for s in by_source
+            ],
+            "total_count": total_count,
+            "items": items,
+            "has_more": offset + limit < total_count
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "summary": {"total_recipients": 0, "total_amount_at_risk": 0, "avg_days_before_formation": 0},
+            "by_source": [],
+            "total_count": 0,
+            "items": [],
+            "has_more": False
+        }
