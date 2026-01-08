@@ -100,7 +100,8 @@ async def warm_cache(db: Session = Depends(get_db)):
         total_recipients = db.query(func.count(Recipient.id)).scalar() or 0
         total_flagged = db.query(func.count(FraudFlag.id)).filter(FraudFlag.is_resolved == False).scalar() or 0
         total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
-        
+        total_agencies = db.query(func.count(Agency.id)).scalar() or 0
+
         # Save individual stats
         stats_to_cache = [
             ("total_awards", totals.total_awards or 0),
@@ -108,6 +109,7 @@ async def warm_cache(db: Session = Depends(get_db)):
             ("total_recipients", total_recipients),
             ("total_flagged", total_flagged),
             ("total_flags_ever", total_flags_ever),
+            ("total_agencies", total_agencies),
         ]
         
         for key, value in stats_to_cache:
@@ -518,8 +520,8 @@ async def get_quick_stats(db: Session = Depends(get_db)):
     # Try to read from database cache
     cache_rows = db.query(CachedStats).filter(
         CachedStats.stat_key.in_([
-            "total_awards", "total_amount", "total_recipients", 
-            "total_flagged", "total_flags_ever", "awards_by_source"
+            "total_awards", "total_amount", "total_recipients",
+            "total_flagged", "total_flags_ever", "awards_by_source", "total_agencies"
         ])
     ).all()
     
@@ -545,6 +547,7 @@ async def get_quick_stats(db: Session = Depends(get_db)):
             "total_amount": cache_dict.get("total_amount", CachedStats(stat_value=0)).stat_value,
             "total_recipients": int(cache_dict.get("total_recipients", CachedStats(stat_value=0)).stat_value),
             "total_flagged": int(cache_dict.get("total_flagged", CachedStats(stat_value=0)).stat_value),
+            "total_agencies": int(cache_dict.get("total_agencies", CachedStats(stat_value=0)).stat_value),
             "correlation_status": correlation_status,
             "awards_by_source": awards_by_source,
         }
@@ -563,6 +566,7 @@ async def get_quick_stats(db: Session = Depends(get_db)):
     ).scalar() or 0
     
     total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
+    total_agencies = db.query(func.count(Agency.id)).scalar() or 0
     total_awards = totals.total_awards or 0
     if total_flags_ever > 0:
         correlation_status = "run"
@@ -570,23 +574,24 @@ async def get_quick_stats(db: Session = Depends(get_db)):
         correlation_status = "not_run"
     else:
         correlation_status = "no_data"
-    
+
     source_query = db.query(
         Award.source,
         func.count(Award.id).label("count"),
         func.sum(Award.amount).label("total")
     ).group_by(Award.source).all()
-    
+
     awards_by_source = {
         row.source: {"count": row.count, "total": float(row.total or 0)}
         for row in source_query
     }
-    
+
     result = {
         "total_awards": total_awards,
         "total_amount": float(totals.total_amount or 0),
         "total_recipients": total_recipients,
         "total_flagged": total_flagged,
+        "total_agencies": total_agencies,
         "correlation_status": correlation_status,
         "awards_by_source": awards_by_source,
     }
