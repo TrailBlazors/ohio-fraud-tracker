@@ -23,3 +23,6 @@ pandas>=2.0.0
 
 # Utilities
 python-dateutil>=2.8.0
+
+# AI/LLM
+anthropic>=0.18.0

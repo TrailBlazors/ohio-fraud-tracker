@@ -102,19 +102,54 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       return 'badge-info';
     }
     
+    async function generateAIAnalysis() {
+      const btn = document.getElementById('generate-ai-btn');
+      const loading = document.getElementById('ai-loading');
+      const error = document.getElementById('ai-error');
+
+      if (btn) btn.classList.add('hidden');
+      if (loading) loading.classList.remove('hidden');
+      if (error) error.classList.add('hidden');
+
+      try {
+        const response = await fetch(`${apiBase}/api/recipients/${recipientId}/ai-analysis?force_regenerate=true`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || 'Failed to generate analysis');
+        }
+
+        if (data.narrative) {
+          // Reload the page to show the new analysis
+          window.location.reload();
+        } else {
+          throw new Error('No analysis generated');
+        }
+      } catch (err) {
+        if (loading) loading.classList.add('hidden');
+        if (btn) btn.classList.remove('hidden');
+        if (error) {
+          error.textContent = err.message || 'Failed to generate analysis. Please try again.';
+          error.classList.remove('hidden');
+        }
+      }
+    }
+
     async function loadRecipient() {
       if (!recipientId) return;
       
       try {
-        const [recipientRes, awardsRes] = await Promise.all([
+        const [recipientRes, awardsRes, aiRes] = await Promise.all([
           fetch(`${apiBase}/api/recipients/${recipientId}`),
-          fetch(`${apiBase}/api/recipients/${recipientId}/awards?page_size=50`)
+          fetch(`${apiBase}/api/recipients/${recipientId}/awards?page_size=50`),
+          fetch(`${apiBase}/api/recipients/${recipientId}/ai-analysis`).catch(() => null)
         ]);
-        
+
         if (!recipientRes.ok) throw new Error('Recipient not found');
-        
+
         const recipient = await recipientRes.json();
         const awards = await awardsRes.json();
+        const aiAnalysis = aiRes?.ok ? await aiRes.json() : null;
         
         // Hide loading, show content
         document.getElementById('loading-state').classList.add('hidden');
@@ -228,8 +263,60 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             </div>
           </div>
           
+          ${aiAnalysis && aiAnalysis.eligible ? `
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 border-l-4 border-purple-500">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <svg class="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12H9v-2h2v2zm0-3H9V5h2v6z"/>
+                  </svg>
+                  AI Risk Analysis
+                  <span class="text-xs font-normal text-gray-500 dark:text-gray-400">(Powered by Claude)</span>
+                </h3>
+                ${aiAnalysis.narrative ? `
+                  <span class="text-xs text-gray-500 dark:text-gray-400">
+                    Generated ${new Date(aiAnalysis.generated_at).toLocaleDateString()}
+                  </span>
+                ` : `
+                  <button id="generate-ai-btn" onclick="generateAIAnalysis()"
+                    class="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
+                    Generate Analysis
+                  </button>
+                `}
+              </div>
+
+              ${aiAnalysis.narrative ? `
+                <div class="prose prose-sm dark:prose-invert max-w-none">
+                  <div class="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">${aiAnalysis.narrative}</div>
+                </div>
+                <p class="mt-4 text-xs text-gray-400 dark:text-gray-500">
+                  Risk factor: ${aiAnalysis.eligibility_reason}
+                </p>
+              ` : `
+                <p class="text-gray-600 dark:text-gray-400 text-sm">
+                  This recipient qualifies for AI analysis based on: <strong>${aiAnalysis.eligibility_reason}</strong>
+                </p>
+                <p class="text-gray-500 dark:text-gray-500 text-xs mt-2">
+                  Click "Generate Analysis" to create a detailed risk assessment.
+                </p>
+              `}
+
+              <div id="ai-loading" class="hidden mt-4">
+                <div class="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                  <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span class="text-sm">Analyzing recipient data...</span>
+                </div>
+              </div>
+
+              <div id="ai-error" class="hidden mt-4 p-3 bg-red-50 dark:bg-red-900/30 rounded text-sm text-red-700 dark:text-red-300"></div>
+            </div>
+          ` : ''}
+
           ${nonprofitSection}
-          
+
           <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
             <div class="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Awards History</h3>

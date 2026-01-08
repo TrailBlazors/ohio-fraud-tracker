@@ -424,6 +424,33 @@ class Tip(Base):
     )
 
 
+class AIAnalysis(Base):
+    """
+    Cached AI-generated narratives explaining why a recipient may be suspicious.
+    Only generated for high-risk recipients to control costs.
+    """
+    __tablename__ = "ai_analyses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    recipient_id = Column(Integer, ForeignKey("recipients.id"), nullable=False, unique=True, index=True)
+
+    # The generated narrative
+    narrative = Column(Text, nullable=False)
+
+    # Context used to generate (for cache invalidation)
+    flags_hash = Column(String(64), nullable=True)  # Hash of flag IDs used
+    awards_count = Column(Integer, nullable=True)   # Number of awards at generation time
+    total_amount = Column(Float, nullable=True)     # Total amount at generation time
+
+    # Metadata
+    model_used = Column(String(50), default="claude-3-haiku-20240307")
+    tokens_used = Column(Integer, nullable=True)
+    generated_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationship
+    recipient = relationship("Recipient", backref="ai_analysis")
+
+
 class ExcludedEntity(Base):
     """
     OIG LEIE (List of Excluded Individuals/Entities)
