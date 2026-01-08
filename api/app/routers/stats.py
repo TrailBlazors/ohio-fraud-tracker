@@ -4,14 +4,16 @@ Statistics and dashboard endpoints
 
 import json
 import time
+import asyncio
 from typing import Any
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, text, extract, cast, String
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import Award, Recipient, Agency, FraudFlag, CachedStats
 from app.schemas import DashboardStats, AwardListItem, AgencySummary
 
@@ -41,227 +43,298 @@ def set_cached(key: str, value: Any):
 # =============================================================================
 
 @router.get("/stats/cache/warm")
-async def warm_cache(db: Session = Depends(get_db)):
+async def warm_cache(stream: bool = False):
     """
     Pre-compute and cache expensive stats.
     Call this after deployment or via cron to keep the cache warm.
-    """
-    results = {}
-    
-    # 1. Top recipients (most expensive query)
-    try:
-        top_results = db.execute(text("""
-            SELECT 
-                r.id, r.name, r.city, r.state, r.business_status,
-                COUNT(a.id) as award_count,
-                SUM(a.amount) as total_amount
-            FROM recipients r
-            INNER JOIN awards a ON a.recipient_id = r.id
-            GROUP BY r.id
-            ORDER BY total_amount DESC
-            LIMIT 20
-        """)).fetchall()
-        
-        items = []
-        for i, row in enumerate(top_results, 1):
-            items.append({
-                "rank": i,
-                "id": row.id,
-                "name": row.name,
-                "city": row.city,
-                "state": row.state,
-                "business_status": row.business_status,
-                "award_count": row.award_count,
-                "total_amount": float(row.total_amount) if row.total_amount else 0
-            })
-        
-        top_data = {"items": items, "count": len(items)}
-        
-        # Update cache
-        cache_key = "top_recipients_20"
-        cached = db.query(CachedStats).filter(CachedStats.stat_key == cache_key).first()
-        if cached:
-            cached.stat_json = json.dumps(top_data)
-            cached.updated_at = datetime.utcnow()
-        else:
-            db.add(CachedStats(stat_key=cache_key, stat_value=20, stat_json=json.dumps(top_data)))
-        
-        results["top_recipients"] = "cached"
-    except Exception as e:
-        results["top_recipients"] = f"error: {str(e)}"
-    
-    # 2. Quick stats
-    try:
-        totals = db.query(
-            func.count(Award.id).label("total_awards"),
-            func.sum(Award.amount).label("total_amount")
-        ).first()
-        
-        total_recipients = db.query(func.count(Recipient.id)).scalar() or 0
-        total_flagged = db.query(func.count(FraudFlag.id)).filter(FraudFlag.is_resolved == False).scalar() or 0
-        total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
-        total_agencies = db.query(func.count(Agency.id)).scalar() or 0
 
-        # Save individual stats
-        stats_to_cache = [
-            ("total_awards", totals.total_awards or 0),
-            ("total_amount", float(totals.total_amount or 0)),
-            ("total_recipients", total_recipients),
-            ("total_flagged", total_flagged),
-            ("total_flags_ever", total_flags_ever),
-            ("total_agencies", total_agencies),
-        ]
-        
-        for key, value in stats_to_cache:
-            cached = db.query(CachedStats).filter(CachedStats.stat_key == key).first()
-            if cached:
-                cached.stat_value = value
-                cached.updated_at = datetime.utcnow()
-            else:
-                db.add(CachedStats(stat_key=key, stat_value=value))
-        
-        results["quick_stats"] = "cached"
-    except Exception as e:
-        results["quick_stats"] = f"error: {str(e)}"
-    
-    # 3. Awards by source
+    Use ?stream=true for real-time progress updates (text/event-stream).
+    """
+    if stream:
+        return StreamingResponse(
+            _warm_cache_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        )
+
+    # Non-streaming version - run and return results
+    db = SessionLocal()
     try:
-        source_query = db.query(
-            Award.source,
-            func.count(Award.id).label("count"),
-            func.sum(Award.amount).label("total")
-        ).group_by(Award.source).all()
-        
-        source_data = {
-            row.source: {"count": row.count, "total": float(row.total or 0)}
-            for row in source_query
-        }
-        
-        cached = db.query(CachedStats).filter(CachedStats.stat_key == "awards_by_source").first()
-        if cached:
-            cached.stat_json = json.dumps(source_data)
-            cached.updated_at = datetime.utcnow()
-        else:
-            db.add(CachedStats(stat_key="awards_by_source", stat_value=len(source_data), stat_json=json.dumps(source_data)))
-        
-        results["awards_by_source"] = "cached"
-    except Exception as e:
-        results["awards_by_source"] = f"error: {str(e)}"
-    
-    # 4. Top agencies
-    try:
-        agency_query = db.query(
-            Agency.id, Agency.code, Agency.name,
-            func.count(Award.id).label("total_awards"),
-            func.sum(Award.amount).label("total_amount")
-        ).join(Award, Award.agency_id == Agency.id)\
-         .group_by(Agency.id)\
-         .order_by(desc("total_amount"))\
-         .limit(10).all()
-        
-        agency_data = [
-            {
-                "id": row.id,
-                "code": row.code,
-                "name": row.name,
-                "total_awards": row.total_awards,
-                "total_amount": float(row.total_amount or 0)
-            }
-            for row in agency_query
-        ]
-        
-        cached = db.query(CachedStats).filter(CachedStats.stat_key == "top_agencies").first()
-        if cached:
-            cached.stat_json = json.dumps(agency_data)
-            cached.updated_at = datetime.utcnow()
-        else:
-            db.add(CachedStats(stat_key="top_agencies", stat_value=len(agency_data), stat_json=json.dumps(agency_data)))
-        
-        results["top_agencies"] = "cached"
-    except Exception as e:
-        results["top_agencies"] = f"error: {str(e)}"
-    
-    # 5. Funding by county (expensive geo query)
-    try:
-        city_results = db.execute(text("""
-            SELECT 
-                UPPER(r.city) as city,
-                COUNT(DISTINCT r.id) as recipient_count,
-                COUNT(a.id) as award_count,
-                COALESCE(SUM(a.amount), 0) as total_amount
-            FROM recipients r
-            LEFT JOIN awards a ON a.recipient_id = r.id
-            WHERE r.city IS NOT NULL AND r.city != '' AND r.state = 'OH'
-            GROUP BY UPPER(r.city)
-            ORDER BY total_amount DESC
-        """)).fetchall()
-        
-        city_to_county = {
-            "COLUMBUS": "FRANKLIN", "CLEVELAND": "CUYAHOGA", "CINCINNATI": "HAMILTON",
-            "TOLEDO": "LUCAS", "AKRON": "SUMMIT", "DAYTON": "MONTGOMERY",
-            "PARMA": "CUYAHOGA", "CANTON": "STARK", "YOUNGSTOWN": "MAHONING",
-            "LORAIN": "LORAIN", "HAMILTON": "BUTLER", "SPRINGFIELD": "CLARK",
-            "KETTERING": "MONTGOMERY", "ELYRIA": "LORAIN", "LAKEWOOD": "CUYAHOGA",
-            "DUBLIN": "FRANKLIN", "FAIRFIELD": "BUTLER", "FINDLAY": "HANCOCK",
-            "WARREN": "TRUMBULL", "LIMA": "ALLEN", "WESTERVILLE": "FRANKLIN",
-            "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
-            "BEAVERCREEK": "GREENE", "CLEVELAND HEIGHTS": "CUYAHOGA", "STRONGSVILLE": "CUYAHOGA",
-            "CUYAHOGA FALLS": "SUMMIT", "MIDDLETOWN": "BUTLER", "EUCLID": "CUYAHOGA",
-            "GROVE CITY": "FRANKLIN", "REYNOLDSBURG": "FRANKLIN", "STOW": "SUMMIT",
-            "DELAWARE": "DELAWARE", "BRUNSWICK": "MEDINA", "UPPER ARLINGTON": "FRANKLIN",
-            "GAHANNA": "FRANKLIN", "WESTLAKE": "CUYAHOGA", "NORTH OLMSTED": "CUYAHOGA",
-            "FAIRBORN": "GREENE", "MASSILLON": "STARK", "MASON": "WARREN",
-            "HUBER HEIGHTS": "MONTGOMERY", "MARION": "MARION",
-        }
-        
-        county_totals = {}
-        for row in city_results:
-            city = row[0]
-            county = city_to_county.get(city)
-            if county:
-                if county not in county_totals:
-                    county_totals[county] = {
-                        "county": county, "recipient_count": 0,
-                        "award_count": 0, "total_amount": 0, "cities": []
-                    }
-                county_totals[county]["recipient_count"] += row[1]
-                county_totals[county]["award_count"] += row[2]
-                county_totals[county]["total_amount"] += float(row[3])
-                if float(row[3]) > 0:
-                    county_totals[county]["cities"].append({
-                        "city": city.title(), "amount": float(row[3])
-                    })
-        
-        counties = sorted(county_totals.values(), key=lambda x: x["total_amount"], reverse=True)
-        for county in counties:
-            county["cities"] = sorted(county["cities"], key=lambda x: x["amount"], reverse=True)[:5]
-        
-        county_data = {"counties": counties, "total_counties": len(counties)}
-        
-        cached = db.query(CachedStats).filter(CachedStats.stat_key == "funding_by_county").first()
-        if cached:
-            cached.stat_json = json.dumps(county_data)
-            cached.updated_at = datetime.utcnow()
-        else:
-            db.add(CachedStats(stat_key="funding_by_county", stat_value=len(counties), stat_json=json.dumps(county_data)))
-        
-        results["funding_by_county"] = "cached"
-    except Exception as e:
-        results["funding_by_county"] = f"error: {str(e)}"
-    
+        results = _warm_cache_sync(db)
+        return results
+    finally:
+        db.close()
+
+
+def _warm_cache_sync(db: Session) -> dict:
+    """Synchronous cache warming with timing."""
+    overall_start = time.time()
+    results = {"tasks": [], "errors": []}
+
+    tasks = [
+        ("top_recipients", "Top 20 Recipients", _cache_top_recipients),
+        ("quick_stats", "Quick Stats (totals)", _cache_quick_stats),
+        ("awards_by_source", "Awards by Source", _cache_awards_by_source),
+        ("top_agencies", "Top 10 Agencies", _cache_top_agencies),
+        ("funding_by_county", "Funding by County", _cache_funding_by_county),
+    ]
+
+    for task_id, task_name, task_func in tasks:
+        start = time.time()
+        try:
+            task_func(db)
+            elapsed = time.time() - start
+            results["tasks"].append({
+                "id": task_id,
+                "name": task_name,
+                "status": "completed",
+                "duration_seconds": round(elapsed, 2)
+            })
+        except Exception as e:
+            elapsed = time.time() - start
+            results["tasks"].append({
+                "id": task_id,
+                "name": task_name,
+                "status": "error",
+                "error": str(e),
+                "duration_seconds": round(elapsed, 2)
+            })
+            results["errors"].append(f"{task_id}: {str(e)}")
+
+    # Commit and clear cache
     try:
         db.commit()
-        # Clear memory cache so next request gets fresh data
         _cache.clear()
     except Exception as e:
         db.rollback()
-        results["commit"] = f"error: {str(e)}"
-    
-    return {
-        "status": "ok",
-        "cached": results,
-        "timestamp": datetime.utcnow().isoformat()
+        results["errors"].append(f"commit: {str(e)}")
+
+    overall_elapsed = time.time() - overall_start
+    results["status"] = "ok" if not results["errors"] else "completed_with_errors"
+    results["total_duration_seconds"] = round(overall_elapsed, 2)
+    results["timestamp"] = datetime.utcnow().isoformat()
+
+    return results
+
+
+async def _warm_cache_stream():
+    """Streaming cache warming with real-time progress."""
+    db = SessionLocal()
+    overall_start = time.time()
+
+    tasks = [
+        ("top_recipients", "Top 20 Recipients", _cache_top_recipients),
+        ("quick_stats", "Quick Stats (totals)", _cache_quick_stats),
+        ("awards_by_source", "Awards by Source", _cache_awards_by_source),
+        ("top_agencies", "Top 10 Agencies", _cache_top_agencies),
+        ("funding_by_county", "Funding by County", _cache_funding_by_county),
+    ]
+
+    yield f"data: {json.dumps({'event': 'start', 'total_tasks': len(tasks), 'timestamp': datetime.utcnow().isoformat()})}\n\n"
+
+    completed = 0
+    errors = []
+
+    for task_id, task_name, task_func in tasks:
+        yield f"data: {json.dumps({'event': 'task_start', 'task_id': task_id, 'task_name': task_name})}\n\n"
+        await asyncio.sleep(0)  # Allow streaming
+
+        start = time.time()
+        try:
+            task_func(db)
+            elapsed = time.time() - start
+            completed += 1
+            yield f"data: {json.dumps({'event': 'task_complete', 'task_id': task_id, 'task_name': task_name, 'duration_seconds': round(elapsed, 2), 'status': 'success'})}\n\n"
+        except Exception as e:
+            elapsed = time.time() - start
+            errors.append(task_id)
+            yield f"data: {json.dumps({'event': 'task_complete', 'task_id': task_id, 'task_name': task_name, 'duration_seconds': round(elapsed, 2), 'status': 'error', 'error': str(e)})}\n\n"
+
+        await asyncio.sleep(0)
+
+    # Commit
+    try:
+        db.commit()
+        _cache.clear()
+        yield f"data: {json.dumps({'event': 'commit', 'status': 'success'})}\n\n"
+    except Exception as e:
+        db.rollback()
+        errors.append("commit")
+        yield f"data: {json.dumps({'event': 'commit', 'status': 'error', 'error': str(e)})}\n\n"
+
+    db.close()
+
+    overall_elapsed = time.time() - overall_start
+    yield f"data: {json.dumps({'event': 'complete', 'total_duration_seconds': round(overall_elapsed, 2), 'tasks_completed': completed, 'tasks_failed': len(errors), 'status': 'ok' if not errors else 'completed_with_errors'})}\n\n"
+
+
+def _cache_top_recipients(db: Session):
+    """Cache top 20 recipients by total funding."""
+    top_results = db.execute(text("""
+        SELECT
+            r.id, r.name, r.city, r.state, r.business_status,
+            COUNT(a.id) as award_count,
+            SUM(a.amount) as total_amount
+        FROM recipients r
+        INNER JOIN awards a ON a.recipient_id = r.id
+        GROUP BY r.id
+        ORDER BY total_amount DESC
+        LIMIT 20
+    """)).fetchall()
+
+    items = []
+    for i, row in enumerate(top_results, 1):
+        items.append({
+            "rank": i, "id": row.id, "name": row.name,
+            "city": row.city, "state": row.state,
+            "business_status": row.business_status,
+            "award_count": row.award_count,
+            "total_amount": float(row.total_amount) if row.total_amount else 0
+        })
+
+    top_data = {"items": items, "count": len(items)}
+    _save_cache(db, "top_recipients_20", 20, top_data)
+
+
+def _cache_quick_stats(db: Session):
+    """Cache quick stats (totals)."""
+    totals = db.query(
+        func.count(Award.id).label("total_awards"),
+        func.sum(Award.amount).label("total_amount")
+    ).first()
+
+    total_recipients = db.query(func.count(Recipient.id)).scalar() or 0
+    total_flagged = db.query(func.count(FraudFlag.id)).filter(FraudFlag.is_resolved == False).scalar() or 0
+    total_flags_ever = db.query(func.count(FraudFlag.id)).scalar() or 0
+    total_agencies = db.query(func.count(Agency.id)).scalar() or 0
+
+    stats_to_cache = [
+        ("total_awards", totals.total_awards or 0),
+        ("total_amount", float(totals.total_amount or 0)),
+        ("total_recipients", total_recipients),
+        ("total_flagged", total_flagged),
+        ("total_flags_ever", total_flags_ever),
+        ("total_agencies", total_agencies),
+    ]
+
+    for key, value in stats_to_cache:
+        cached = db.query(CachedStats).filter(CachedStats.stat_key == key).first()
+        if cached:
+            cached.stat_value = value
+            cached.updated_at = datetime.utcnow()
+        else:
+            db.add(CachedStats(stat_key=key, stat_value=value))
+
+
+def _cache_awards_by_source(db: Session):
+    """Cache awards breakdown by source."""
+    source_query = db.query(
+        Award.source,
+        func.count(Award.id).label("count"),
+        func.sum(Award.amount).label("total")
+    ).group_by(Award.source).all()
+
+    source_data = {
+        row.source: {"count": row.count, "total": float(row.total or 0)}
+        for row in source_query
     }
+    _save_cache(db, "awards_by_source", len(source_data), source_data)
+
+
+def _cache_top_agencies(db: Session):
+    """Cache top 10 agencies by funding amount."""
+    agency_query = db.query(
+        Agency.id, Agency.code, Agency.name,
+        func.count(Award.id).label("total_awards"),
+        func.sum(Award.amount).label("total_amount")
+    ).join(Award, Award.agency_id == Agency.id)\
+     .group_by(Agency.id)\
+     .order_by(desc("total_amount"))\
+     .limit(10).all()
+
+    agency_data = [
+        {
+            "id": row.id, "code": row.code, "name": row.name,
+            "total_awards": row.total_awards,
+            "total_amount": float(row.total_amount or 0)
+        }
+        for row in agency_query
+    ]
+    _save_cache(db, "top_agencies", len(agency_data), agency_data)
+
+
+def _cache_funding_by_county(db: Session):
+    """Cache funding aggregated by Ohio county."""
+    city_results = db.execute(text("""
+        SELECT
+            UPPER(r.city) as city,
+            COUNT(DISTINCT r.id) as recipient_count,
+            COUNT(a.id) as award_count,
+            COALESCE(SUM(a.amount), 0) as total_amount
+        FROM recipients r
+        LEFT JOIN awards a ON a.recipient_id = r.id
+        WHERE r.city IS NOT NULL AND r.city != '' AND r.state = 'OH'
+        GROUP BY UPPER(r.city)
+        ORDER BY total_amount DESC
+    """)).fetchall()
+
+    city_to_county = {
+        "COLUMBUS": "FRANKLIN", "CLEVELAND": "CUYAHOGA", "CINCINNATI": "HAMILTON",
+        "TOLEDO": "LUCAS", "AKRON": "SUMMIT", "DAYTON": "MONTGOMERY",
+        "PARMA": "CUYAHOGA", "CANTON": "STARK", "YOUNGSTOWN": "MAHONING",
+        "LORAIN": "LORAIN", "HAMILTON": "BUTLER", "SPRINGFIELD": "CLARK",
+        "KETTERING": "MONTGOMERY", "ELYRIA": "LORAIN", "LAKEWOOD": "CUYAHOGA",
+        "DUBLIN": "FRANKLIN", "FAIRFIELD": "BUTLER", "FINDLAY": "HANCOCK",
+        "WARREN": "TRUMBULL", "LIMA": "ALLEN", "WESTERVILLE": "FRANKLIN",
+        "NEWARK": "LICKING", "MANSFIELD": "RICHLAND", "MENTOR": "LAKE",
+        "BEAVERCREEK": "GREENE", "CLEVELAND HEIGHTS": "CUYAHOGA", "STRONGSVILLE": "CUYAHOGA",
+        "CUYAHOGA FALLS": "SUMMIT", "MIDDLETOWN": "BUTLER", "EUCLID": "CUYAHOGA",
+        "GROVE CITY": "FRANKLIN", "REYNOLDSBURG": "FRANKLIN", "STOW": "SUMMIT",
+        "DELAWARE": "DELAWARE", "BRUNSWICK": "MEDINA", "UPPER ARLINGTON": "FRANKLIN",
+        "GAHANNA": "FRANKLIN", "WESTLAKE": "CUYAHOGA", "NORTH OLMSTED": "CUYAHOGA",
+        "FAIRBORN": "GREENE", "MASSILLON": "STARK", "MASON": "WARREN",
+        "HUBER HEIGHTS": "MONTGOMERY", "MARION": "MARION",
+    }
+
+    county_totals = {}
+    for row in city_results:
+        city = row[0]
+        county = city_to_county.get(city)
+        if county:
+            if county not in county_totals:
+                county_totals[county] = {
+                    "county": county, "recipient_count": 0,
+                    "award_count": 0, "total_amount": 0, "cities": []
+                }
+            county_totals[county]["recipient_count"] += row[1]
+            county_totals[county]["award_count"] += row[2]
+            county_totals[county]["total_amount"] += float(row[3])
+            if float(row[3]) > 0:
+                county_totals[county]["cities"].append({
+                    "city": city.title(), "amount": float(row[3])
+                })
+
+    counties = sorted(county_totals.values(), key=lambda x: x["total_amount"], reverse=True)
+    for county in counties:
+        county["cities"] = sorted(county["cities"], key=lambda x: x["amount"], reverse=True)[:5]
+
+    county_data = {"counties": counties, "total_counties": len(counties)}
+    _save_cache(db, "funding_by_county", len(counties), county_data)
+
+
+def _save_cache(db: Session, key: str, value: int, json_data: Any = None):
+    """Helper to save or update a cache entry."""
+    cached = db.query(CachedStats).filter(CachedStats.stat_key == key).first()
+    if cached:
+        cached.stat_value = value
+        cached.stat_json = json.dumps(json_data) if json_data else None
+        cached.updated_at = datetime.utcnow()
+    else:
+        db.add(CachedStats(
+            stat_key=key,
+            stat_value=value,
+            stat_json=json.dumps(json_data) if json_data else None
+        ))
 
 
 @router.get("/stats/db/optimize")
