@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 
 from app.database import get_db_info, init_db
 from app.routers import awards, recipients, stats, health, naics, correlation, tips, ai
+from app.middleware import BotBlockerMiddleware
 
 # =============================================================================
 # APP CONFIGURATION
@@ -34,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security: Block malicious bot traffic (WordPress scanners, PHP exploits, etc.)
+app.add_middleware(BotBlockerMiddleware)
 
 # =============================================================================
 # API ROUTERS - Must be first!
