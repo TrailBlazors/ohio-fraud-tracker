@@ -109,8 +109,13 @@ def create_tables():
 def detect_file_type(csv_content: str) -> str:
     """Detect if file is contributions or expenditures based on headers."""
     first_line = csv_content.split("\n")[0].upper()
-    if "EXPEND_DATE" in first_line or "PURPOSE" in first_line or "INKIND" in first_line:
+    # Expenditure-specific fields (PAYEE_NAME, EXPEND_DATE)
+    # Note: INKIND_DESCRIPTION appears in contributions, so don't use INKIND alone
+    if "EXPEND_DATE" in first_line or "PAYEE_NAME" in first_line or "PAYEE_FIRST" in first_line:
         return "expenditure"
+    # Contribution-specific fields (EVENT_DATE, EMP_OCCUPATION)
+    if "EVENT_DATE" in first_line or "EMP_OCCUPATION" in first_line:
+        return "contribution"
     return "contribution"
 
 
