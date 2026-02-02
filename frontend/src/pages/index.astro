@@ -457,11 +457,15 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
     }
   }
   
-  // Load all data on page load
+  // Load all data on page load - parallelize for faster dashboard load
   document.addEventListener('DOMContentLoaded', () => {
-    loadStats();
-    loadAwardsByType();
-    loadTopAgencies();
-    loadRecentAwards();
+    Promise.all([
+      loadStats(),
+      loadAwardsByType(),
+      loadTopAgencies(),
+      loadRecentAwards()
+    ]).catch(err => {
+      console.error('Dashboard load error:', err);
+    });
   });
 </script>
