@@ -1,0 +1,327 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout
+  title="Political Donors - Ohio Fraud Tracker"
+  description="Recipients who donated to political campaigns and also received government awards. Potential pay-to-play connections."
+  keywords="Ohio campaign finance, political donors, pay to play, government contracts, campaign contributions"
+>
+  <div class="mb-6">
+    <div class="flex items-center gap-3 mb-2">
+      <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900">
+        <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"></path>
+        </svg>
+      </span>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Political Donors</h1>
+        <p class="text-gray-500 dark:text-gray-400">Recipients with campaign contributions who also received government awards</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Coverage Banner -->
+  <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+      </svg>
+      <div>
+        <h3 class="font-semibold text-blue-800 dark:text-blue-200">Campaign Finance Data: 1990-2022</h3>
+        <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+          Data from Ohio Secretary of State campaign finance filings. Updated annually.
+          <a href="https://www.ohiosos.gov/campaign-finance/" target="_blank" class="underline">View source</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error Alert (hidden by default) -->
+  <div id="error-alert" class="hidden p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-300" role="alert">
+    <span class="font-medium">Error:</span> <span id="error-message"></span>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loading-state" class="text-center py-12">
+    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    <p class="mt-2 text-gray-500 dark:text-gray-400">Loading political donor analysis...</p>
+  </div>
+
+  <!-- Content (hidden until loaded) -->
+  <div id="content" class="hidden">
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Recipients Flagged</p>
+        <p id="total-flagged" class="text-2xl font-bold text-purple-600 dark:text-purple-400">0</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total Contributions</p>
+        <p id="total-contributions" class="text-2xl font-bold text-blue-600 dark:text-blue-400">$0</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total Donations</p>
+        <p id="total-donated" class="text-2xl font-bold text-amber-600 dark:text-amber-400">$0</p>
+      </div>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400">Total Awards Received</p>
+        <p id="total-awards" class="text-2xl font-bold text-green-600 dark:text-green-400">$0</p>
+      </div>
+    </div>
+
+    <!-- Analysis Explanation -->
+    <div class="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-6">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+        </svg>
+        <div>
+          <h3 class="font-semibold text-purple-800 dark:text-purple-200">Pay-to-Play Analysis</h3>
+          <p class="text-sm text-purple-700 dark:text-purple-300 mt-1">
+            This analysis identifies entities that made campaign contributions to Ohio politicians
+            and also received government awards (grants, loans, contracts). While contributions
+            are legal, patterns of giving followed by receiving may warrant scrutiny.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
+      <div class="flex flex-wrap gap-4 items-center">
+        <div>
+          <label for="min-donated" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Donated</label>
+          <select id="min-donated" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">Any Amount</option>
+            <option value="1000">$1,000+</option>
+            <option value="5000">$5,000+</option>
+            <option value="10000">$10,000+</option>
+            <option value="25000">$25,000+</option>
+            <option value="100000">$100,000+</option>
+          </select>
+        </div>
+        <div>
+          <label for="min-awards" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Min Awards</label>
+          <select id="min-awards" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-2 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">Any Amount</option>
+            <option value="100000">$100K+</option>
+            <option value="500000">$500K+</option>
+            <option value="1000000">$1M+</option>
+            <option value="10000000">$10M+</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button id="apply-filters" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded-lg transition-colors">
+            Apply Filters
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+        <p id="results-count" class="text-sm text-gray-500 dark:text-gray-400">Loading results...</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+            <tr class="text-gray-600 dark:text-gray-300">
+              <th class="px-4 py-3">Recipient</th>
+              <th class="px-4 py-3 w-32 text-right">Donated</th>
+              <th class="px-4 py-3 w-20 text-center"># Donations</th>
+              <th class="px-4 py-3 w-32 text-right">Awards Received</th>
+              <th class="px-4 py-3 w-20 text-center"># Awards</th>
+              <th class="px-4 py-3 w-24 text-center">Severity</th>
+            </tr>
+          </thead>
+          <tbody id="results-table" class="divide-y divide-gray-200 dark:divide-gray-700">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="hidden flex justify-between items-center mt-4">
+      <p id="page-info" class="text-sm text-gray-500 dark:text-gray-400"></p>
+      <div class="flex gap-2">
+        <button id="prev-btn" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Previous
+        </button>
+        <button id="next-btn" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Note -->
+  <p class="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
+    Campaign finance data: Ohio Secretary of State (1990-2022). Award data: USAspending.gov, SBA, Ohio Checkbook.
+  </p>
+</DashboardLayout>
+
+<style>
+  :global(html.dark) table tbody td {
+    color: #d1d5db !important;
+  }
+  :global(html.dark) table tbody td .font-medium {
+    color: #ffffff !important;
+  }
+</style>
+
+<script>
+  const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+  let currentPage = 1;
+  const pageSize = 25;
+
+  function formatCurrency(amount) {
+    if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(2)}B`;
+    if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`;
+    if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`;
+    return `$${amount.toLocaleString()}`;
+  }
+
+  function getSeverityBadge(severity) {
+    const styles = {
+      critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+    };
+    return `<span class="px-2 py-1 text-xs font-medium rounded ${styles[severity] || styles.low}">${severity}</span>`;
+  }
+
+  async function loadData() {
+    const loadingEl = document.getElementById('loading-state');
+    const contentEl = document.getElementById('content');
+    const errorEl = document.getElementById('error-alert');
+    const errorMsg = document.getElementById('error-message');
+
+    const minDonated = document.getElementById('min-donated').value;
+    const minAwards = document.getElementById('min-awards').value;
+
+    const params = new URLSearchParams();
+    if (minDonated) params.set('min_donated', minDonated);
+    if (minAwards) params.set('min_awards', minAwards);
+    params.set('page', currentPage);
+    params.set('page_size', pageSize);
+
+    try {
+      loadingEl.classList.remove('hidden');
+      contentEl.classList.add('hidden');
+      errorEl.classList.add('hidden');
+
+      const response = await fetch(`${apiBase}/api/campaign-finance/political-donors?${params}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to load data');
+      }
+
+      const data = await response.json();
+
+      // Calculate totals from items
+      let totalDonated = 0;
+      let totalAwardsAmount = 0;
+      data.items.forEach(item => {
+        totalDonated += item.total_donated || 0;
+        totalAwardsAmount += item.total_awards || 0;
+      });
+
+      // Update summary cards
+      document.getElementById('total-flagged').textContent = data.total_count.toLocaleString();
+      document.getElementById('total-contributions').textContent = data.total_count.toLocaleString();
+      document.getElementById('total-donated').textContent = formatCurrency(totalDonated);
+      document.getElementById('total-awards').textContent = formatCurrency(totalAwardsAmount);
+
+      // Update results count
+      const startIdx = (currentPage - 1) * pageSize + 1;
+      const endIdx = Math.min(currentPage * pageSize, data.total_count);
+      document.getElementById('results-count').textContent =
+        data.total_count > 0
+          ? `Showing ${startIdx}-${endIdx} of ${data.total_count.toLocaleString()} political donors`
+          : 'No political donors found';
+
+      // Build table
+      const tbody = document.getElementById('results-table');
+      if (data.items.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+              No political donors found matching your criteria
+            </td>
+          </tr>
+        `;
+      } else {
+        tbody.innerHTML = data.items.map(item => `
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onclick="window.location.href='/recipients/view?id=${item.recipient_id}'">
+            <td class="px-4 py-3">
+              <div class="font-medium text-gray-900 dark:text-white">${item.recipient_name}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">${item.city || 'Ohio'} ${item.business_type ? '• ' + item.business_type : ''}</div>
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+              ${formatCurrency(item.total_donated)}
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">
+              ${item.num_donations}
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
+              ${formatCurrency(item.total_awards)}
+            </td>
+            <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-300">
+              ${item.num_awards}
+            </td>
+            <td class="px-4 py-3 text-center">
+              ${getSeverityBadge(item.flag_severity)}
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      // Update pagination
+      const paginationEl = document.getElementById('pagination');
+      const prevBtn = document.getElementById('prev-btn');
+      const nextBtn = document.getElementById('next-btn');
+      const pageInfo = document.getElementById('page-info');
+
+      if (data.total_count > pageSize) {
+        paginationEl.classList.remove('hidden');
+        pageInfo.textContent = `Page ${currentPage} of ${data.total_pages}`;
+        prevBtn.disabled = !data.has_prev;
+        nextBtn.disabled = !data.has_next;
+      } else {
+        paginationEl.classList.add('hidden');
+      }
+
+      loadingEl.classList.add('hidden');
+      contentEl.classList.remove('hidden');
+
+    } catch (err) {
+      loadingEl.classList.add('hidden');
+      errorEl.classList.remove('hidden');
+      errorMsg.textContent = err.message || 'Failed to load data. Campaign finance data may not be imported yet.';
+    }
+  }
+
+  // Event listeners
+  document.getElementById('apply-filters').addEventListener('click', () => {
+    currentPage = 1;
+    loadData();
+  });
+
+  document.getElementById('prev-btn').addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      loadData();
+    }
+  });
+
+  document.getElementById('next-btn').addEventListener('click', () => {
+    currentPage++;
+    loadData();
+  });
+
+  // Initial load
+  loadData();
+</script>

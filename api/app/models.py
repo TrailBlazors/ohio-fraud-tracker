@@ -43,6 +43,7 @@ class DataSource(str, Enum):
     SBIR = "sbir"
     OHIO_CHECKBOOK = "ohio_checkbook"
     OHIO_SOS = "ohio_sos"
+    CAMPAIGN_FINANCE = "campaign_finance"
 
 
 class BusinessStatus(str, Enum):
@@ -498,6 +499,99 @@ class ExcludedEntity(Base):
     __table_args__ = (
         Index("ix_excluded_name_state", "name_normalized", "state"),
         Index("ix_excluded_business", "business_name"),
+    )
+
+
+# =============================================================================
+# CAMPAIGN FINANCE TABLES
+# =============================================================================
+
+class CampaignContribution(Base):
+    """
+    Ohio campaign finance contributions from Secretary of State.
+    Used to identify potential pay-to-play patterns.
+    Data coverage: 1990-2022 (updated annually)
+    """
+    __tablename__ = "campaign_contributions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Committee (recipient of contribution)
+    committee_name = Column(String(255), nullable=False, index=True)
+    committee_type = Column(String(10))  # CAN (candidate), PAC, PAR (party)
+    master_key = Column(Integer, index=True)  # Ohio SOS committee ID
+    district = Column(Integer, nullable=True)
+
+    # Contributor info
+    contributor_first = Column(String(100), nullable=True)
+    contributor_middle = Column(String(100), nullable=True)
+    contributor_last = Column(String(100), nullable=True)
+    contributor_suffix = Column(String(20), nullable=True)
+    contributor_name = Column(String(255), nullable=True)  # Combined or business name
+    contributor_name_normalized = Column(String(255), index=True)
+
+    # Contributor address
+    address = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True, index=True)
+    state = Column(String(2), nullable=True)
+    zip_code = Column(String(10), nullable=True)
+
+    # Contribution details
+    amount = Column(Float, nullable=False, index=True)
+    contribution_date = Column(Date, nullable=True, index=True)
+    report_year = Column(Integer, index=True)
+
+    # Cross-reference to recipient (if matched)
+    matched_recipient_id = Column(Integer, ForeignKey("recipients.id"), nullable=True, index=True)
+    match_confidence = Column(Float, nullable=True)
+    match_method = Column(String(50), nullable=True)
+
+    # Metadata
+    source_file = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    matched_recipient = relationship("Recipient")
+
+    __table_args__ = (
+        Index("ix_contributions_committee", "committee_name", "committee_type"),
+        Index("ix_contributions_contributor", "contributor_name_normalized", "city"),
+        Index("ix_contributions_date_amount", "contribution_date", "amount"),
+    )
+
+
+class Politician(Base):
+    """
+    Ohio politicians/candidates extracted from campaign committees.
+    Used to link contributions to specific elected officials.
+    """
+    __tablename__ = "politicians"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Ohio SOS identifiers
+    master_key = Column(Integer, unique=True, index=True)  # Links to contributions
+    committee_name = Column(String(255), nullable=False)
+
+    # Politician info
+    name = Column(String(255), nullable=False, index=True)
+    name_normalized = Column(String(255), index=True)
+    party = Column(String(50), nullable=True)
+    office = Column(String(100), nullable=True)
+    district = Column(String(50), nullable=True)
+
+    # Aggregated stats (denormalized for performance)
+    total_contributions = Column(Float, default=0)
+    contribution_count = Column(Integer, default=0)
+    years_active = Column(String(100), nullable=True)  # e.g., "2018-2022"
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_politicians_name", "name_normalized"),
+        Index("ix_politicians_office", "office", "district"),
     )
 
 

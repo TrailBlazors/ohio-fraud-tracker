@@ -34,6 +34,8 @@ class FlagType(Enum):
     NONPROFIT_LOW_PROGRAM_RATIO = "nonprofit_low_program_ratio"  # <65% to programs
     NONPROFIT_STALE_FILING = "nonprofit_stale_filing"  # >3 years since filing
     NONPROFIT_NO_FILING = "nonprofit_no_filing"  # Has EIN but no 990 found
+    # Campaign finance flags
+    POLITICAL_DONOR = "political_donor"  # Donated to campaigns and received awards
 
 
 class Severity(Enum):

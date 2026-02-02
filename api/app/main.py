@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.database import get_db_info, init_db
-from app.routers import awards, recipients, stats, health, naics, correlation, tips, ai
+from app.routers import awards, recipients, stats, health, naics, correlation, tips, ai, campaign_finance
 from app.middleware import BotBlockerMiddleware
 
 # =============================================================================
@@ -51,6 +51,7 @@ app.include_router(naics.router, prefix="/api", tags=["Business Types"])
 app.include_router(correlation.router, prefix="/api", tags=["Correlation & Fraud Detection"])
 app.include_router(tips.router, prefix="/api", tags=["Tips"])
 app.include_router(ai.router, prefix="/api", tags=["AI Analysis"])
+app.include_router(campaign_finance.router, prefix="/api", tags=["Campaign Finance"])
 
 
 # =============================================================================
