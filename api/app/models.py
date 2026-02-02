@@ -560,6 +560,67 @@ class CampaignContribution(Base):
     )
 
 
+class CampaignExpenditure(Base):
+    """
+    Ohio campaign finance expenditures from Secretary of State.
+    Shows who politicians are paying - useful for reverse pay-to-play analysis.
+    Data coverage: 1990-2022 (updated annually)
+    """
+    __tablename__ = "campaign_expenditures"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Committee (who is spending)
+    committee_name = Column(String(255), nullable=False, index=True)
+    master_key = Column(Integer, index=True)  # Ohio SOS committee ID
+    report_year = Column(Integer, index=True)
+
+    # Candidate info (from file)
+    candidate_first = Column(String(100), nullable=True)
+    candidate_last = Column(String(100), nullable=True)
+    office = Column(String(100), nullable=True)
+    district = Column(Integer, nullable=True)
+    party = Column(String(50), nullable=True)
+
+    # Payee info (who received payment)
+    payee_first = Column(String(100), nullable=True)
+    payee_middle = Column(String(100), nullable=True)
+    payee_last = Column(String(100), nullable=True)
+    payee_suffix = Column(String(20), nullable=True)
+    payee_name = Column(String(255), nullable=True)  # Non-individual/business name
+    payee_name_normalized = Column(String(255), index=True)
+
+    # Payee address
+    address = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True, index=True)
+    state = Column(String(2), nullable=True)
+    zip_code = Column(String(10), nullable=True)
+
+    # Expenditure details
+    amount = Column(Float, nullable=False, index=True)
+    expenditure_date = Column(Date, nullable=True, index=True)
+    purpose = Column(String(255), nullable=True)
+    is_inkind = Column(Boolean, default=False)
+
+    # Cross-reference to recipient (if matched)
+    matched_recipient_id = Column(Integer, ForeignKey("recipients.id"), nullable=True, index=True)
+    match_confidence = Column(Float, nullable=True)
+    match_method = Column(String(50), nullable=True)
+
+    # Metadata
+    source_file = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    matched_recipient = relationship("Recipient")
+
+    __table_args__ = (
+        Index("ix_expenditures_committee", "committee_name", "master_key"),
+        Index("ix_expenditures_payee", "payee_name_normalized", "city"),
+        Index("ix_expenditures_date_amount", "expenditure_date", "amount"),
+    )
+
+
 class Politician(Base):
     """
     Ohio politicians/candidates extracted from campaign committees.
