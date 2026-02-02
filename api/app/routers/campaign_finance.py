@@ -53,56 +53,71 @@ async def get_campaign_finance_stats(db: Session = Depends(get_db)):
     Get summary statistics for campaign finance data.
     Used on dashboard and campaign finance landing page.
     """
-    # Total contributions
-    total = db.query(func.count(CampaignContribution.id)).scalar() or 0
-    total_amount = db.query(func.sum(CampaignContribution.amount)).scalar() or 0
+    try:
+        # Total contributions
+        total = db.query(func.count(CampaignContribution.id)).scalar() or 0
+        total_amount = db.query(func.sum(CampaignContribution.amount)).scalar() or 0
 
-    # By committee type
-    by_type = db.query(
-        CampaignContribution.committee_type,
-        func.count(CampaignContribution.id).label("count"),
-        func.sum(CampaignContribution.amount).label("total")
-    ).group_by(CampaignContribution.committee_type).all()
+        # By committee type
+        by_type = db.query(
+            CampaignContribution.committee_type,
+            func.count(CampaignContribution.id).label("count"),
+            func.sum(CampaignContribution.amount).label("total")
+        ).group_by(CampaignContribution.committee_type).all()
 
-    type_breakdown = {
-        row.committee_type or "Unknown": {
-            "count": row.count,
-            "total": float(row.total or 0)
+        type_breakdown = {
+            row.committee_type or "Unknown": {
+                "count": row.count,
+                "total": float(row.total or 0)
+            }
+            for row in by_type
         }
-        for row in by_type
-    }
 
-    # Year range in actual data
-    year_range = db.query(
-        func.min(CampaignContribution.report_year),
-        func.max(CampaignContribution.report_year)
-    ).first()
+        # Year range in actual data
+        year_range = db.query(
+            func.min(CampaignContribution.report_year),
+            func.max(CampaignContribution.report_year)
+        ).first()
 
-    # Matched to recipients
-    matched_count = db.query(func.count(CampaignContribution.id)).filter(
-        CampaignContribution.matched_recipient_id.isnot(None)
-    ).scalar() or 0
+        # Matched to recipients
+        matched_count = db.query(func.count(CampaignContribution.id)).filter(
+            CampaignContribution.matched_recipient_id.isnot(None)
+        ).scalar() or 0
 
-    # Political donor flags
-    donor_flags = db.query(func.count(FraudFlag.id)).filter(
-        FraudFlag.flag_type == "political_donor"
-    ).scalar() or 0
+        # Political donor flags
+        donor_flags = db.query(func.count(FraudFlag.id)).filter(
+            FraudFlag.flag_type == "political_donor"
+        ).scalar() or 0
 
-    # Politician count
-    politician_count = db.query(func.count(Politician.id)).scalar() or 0
+        # Politician count
+        politician_count = db.query(func.count(Politician.id)).scalar() or 0
 
-    return {
-        "total_contributions": total,
-        "total_amount": float(total_amount),
-        "by_committee_type": type_breakdown,
-        "data_coverage": {
-            "start_year": year_range[0] if year_range else DATA_START_YEAR,
-            "end_year": year_range[1] if year_range else DATA_END_YEAR,
-        },
-        "matched_to_recipients": matched_count,
-        "recipients_flagged_as_donors": donor_flags,
-        "politicians_tracked": politician_count,
-    }
+        return {
+            "total_contributions": total,
+            "total_amount": float(total_amount),
+            "by_committee_type": type_breakdown,
+            "data_coverage": {
+                "start_year": year_range[0] if year_range else DATA_START_YEAR,
+                "end_year": year_range[1] if year_range else DATA_END_YEAR,
+            },
+            "matched_to_recipients": matched_count,
+            "recipients_flagged_as_donors": donor_flags,
+            "politicians_tracked": politician_count,
+        }
+    except Exception:
+        # Tables may not exist yet
+        return {
+            "total_contributions": 0,
+            "total_amount": 0,
+            "by_committee_type": {},
+            "data_coverage": {
+                "start_year": None,
+                "end_year": None,
+            },
+            "matched_to_recipients": 0,
+            "recipients_flagged_as_donors": 0,
+            "politicians_tracked": 0,
+        }
 
 
 @router.get("/campaign-finance/contributions")
@@ -125,84 +140,99 @@ async def search_contributions(
 
     Data covers {DATA_START_YEAR}-{DATA_END_YEAR}.
     """
-    query = db.query(CampaignContribution)
-
-    # Apply filters
-    if contributor:
-        search_term = f"%{contributor.lower()}%"
-        query = query.filter(
-            or_(
-                func.lower(CampaignContribution.contributor_name).like(search_term),
-                func.lower(CampaignContribution.contributor_name_normalized).like(search_term),
-                func.lower(CampaignContribution.contributor_last).like(search_term),
-            )
-        )
-
-    if committee:
-        search_term = f"%{committee.lower()}%"
-        query = query.filter(
-            func.lower(CampaignContribution.committee_name).like(search_term)
-        )
-
-    if committee_type:
-        query = query.filter(CampaignContribution.committee_type == committee_type.upper())
-
-    if city:
-        query = query.filter(func.lower(CampaignContribution.city) == city.lower())
-
-    if min_amount is not None:
-        query = query.filter(CampaignContribution.amount >= min_amount)
-
-    if max_amount is not None:
-        query = query.filter(CampaignContribution.amount <= max_amount)
-
-    if year_from is not None:
-        query = query.filter(CampaignContribution.report_year >= year_from)
-
-    if year_to is not None:
-        query = query.filter(CampaignContribution.report_year <= year_to)
-
-    if recipient_id is not None:
-        query = query.filter(CampaignContribution.matched_recipient_id == recipient_id)
-
-    # Get total count (skip for performance on large datasets)
-    total_count = query.count()
-
-    # Sort and paginate
-    query = query.order_by(desc(CampaignContribution.amount))
-    offset = (page - 1) * page_size
-    results = query.offset(offset).limit(page_size).all()
-
-    items = [
-        {
-            "id": c.id,
-            "contributor_name": c.contributor_name or f"{c.contributor_first or ''} {c.contributor_last or ''}".strip(),
-            "address": c.address,
-            "city": c.city,
-            "state": c.state,
-            "zip_code": c.zip_code,
-            "amount": c.amount,
-            "contribution_date": c.contribution_date.isoformat() if c.contribution_date else None,
-            "report_year": c.report_year,
-            "committee_name": c.committee_name,
-            "committee_type": c.committee_type,
-            "matched_recipient_id": c.matched_recipient_id,
-        }
-        for c in results
-    ]
-
-    total_pages = (total_count + page_size - 1) // page_size if total_count else 0
-
-    return {
-        "items": items,
+    empty_response = {
+        "items": [],
         "page": page,
         "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "has_next": page < total_pages,
-        "has_prev": page > 1,
+        "total_count": 0,
+        "total_pages": 0,
+        "has_next": False,
+        "has_prev": False,
         "data_coverage": f"{DATA_START_YEAR}-{DATA_END_YEAR}",
     }
+
+    try:
+        query = db.query(CampaignContribution)
+
+        # Apply filters
+        if contributor:
+            search_term = f"%{contributor.lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(CampaignContribution.contributor_name).like(search_term),
+                    func.lower(CampaignContribution.contributor_name_normalized).like(search_term),
+                    func.lower(CampaignContribution.contributor_last).like(search_term),
+                )
+            )
+
+        if committee:
+            search_term = f"%{committee.lower()}%"
+            query = query.filter(
+                func.lower(CampaignContribution.committee_name).like(search_term)
+            )
+
+        if committee_type:
+            query = query.filter(CampaignContribution.committee_type == committee_type.upper())
+
+        if city:
+            query = query.filter(func.lower(CampaignContribution.city) == city.lower())
+
+        if min_amount is not None:
+            query = query.filter(CampaignContribution.amount >= min_amount)
+
+        if max_amount is not None:
+            query = query.filter(CampaignContribution.amount <= max_amount)
+
+        if year_from is not None:
+            query = query.filter(CampaignContribution.report_year >= year_from)
+
+        if year_to is not None:
+            query = query.filter(CampaignContribution.report_year <= year_to)
+
+        if recipient_id is not None:
+            query = query.filter(CampaignContribution.matched_recipient_id == recipient_id)
+
+        # Get total count (skip for performance on large datasets)
+        total_count = query.count()
+
+        # Sort and paginate
+        query = query.order_by(desc(CampaignContribution.amount))
+        offset = (page - 1) * page_size
+        results = query.offset(offset).limit(page_size).all()
+
+        items = [
+            {
+                "id": c.id,
+                "contributor_name": c.contributor_name or f"{c.contributor_first or ''} {c.contributor_last or ''}".strip(),
+                "address": c.address,
+                "city": c.city,
+                "state": c.state,
+                "zip_code": c.zip_code,
+                "amount": c.amount,
+                "contribution_date": c.contribution_date.isoformat() if c.contribution_date else None,
+                "report_year": c.report_year,
+                "committee_name": c.committee_name,
+                "committee_type": c.committee_type,
+                "matched_recipient_id": c.matched_recipient_id,
+            }
+            for c in results
+        ]
+
+        total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+
+        return {
+            "items": items,
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+            "data_coverage": f"{DATA_START_YEAR}-{DATA_END_YEAR}",
+        }
+    except Exception:
+        # Table may not exist yet
+        return empty_response
 
 
 @router.get("/campaign-finance/top-donors")
@@ -583,79 +613,92 @@ async def search_expenditures(
     """
     Search campaign expenditures with filters.
     """
-    query = db.query(CampaignExpenditure)
-
-    if payee:
-        search_term = f"%{payee.lower()}%"
-        query = query.filter(
-            or_(
-                func.lower(CampaignExpenditure.payee_name).like(search_term),
-                func.lower(CampaignExpenditure.payee_name_normalized).like(search_term),
-            )
-        )
-
-    if committee:
-        search_term = f"%{committee.lower()}%"
-        query = query.filter(
-            func.lower(CampaignExpenditure.committee_name).like(search_term)
-        )
-
-    if purpose:
-        search_term = f"%{purpose.lower()}%"
-        query = query.filter(
-            func.lower(CampaignExpenditure.purpose).like(search_term)
-        )
-
-    if city:
-        query = query.filter(func.lower(CampaignExpenditure.city) == city.lower())
-
-    if min_amount is not None:
-        query = query.filter(CampaignExpenditure.amount >= min_amount)
-
-    if max_amount is not None:
-        query = query.filter(CampaignExpenditure.amount <= max_amount)
-
-    if year_from is not None:
-        query = query.filter(CampaignExpenditure.report_year >= year_from)
-
-    if year_to is not None:
-        query = query.filter(CampaignExpenditure.report_year <= year_to)
-
-    # Get total count
-    total_count = query.count()
-
-    # Apply pagination and ordering
-    expenditures = query.order_by(desc(CampaignExpenditure.amount)).offset(
-        (page - 1) * page_size
-    ).limit(page_size).all()
-
-    total_pages = (total_count + page_size - 1) // page_size if total_count else 0
-
-    return {
-        "items": [
-            {
-                "id": e.id,
-                "committee_name": e.committee_name,
-                "candidate_name": f"{e.candidate_first or ''} {e.candidate_last or ''}".strip() or None,
-                "party": e.party,
-                "office": e.office,
-                "payee_name": e.payee_name or f"{e.payee_first or ''} ".strip(),
-                "city": e.city,
-                "state": e.state,
-                "amount": float(e.amount),
-                "expenditure_date": e.expenditure_date.isoformat() if e.expenditure_date else None,
-                "purpose": e.purpose,
-                "report_year": e.report_year,
-            }
-            for e in expenditures
-        ],
+    empty_response = {
+        "items": [],
         "page": page,
         "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "has_next": page < total_pages,
-        "has_prev": page > 1,
+        "total_count": 0,
+        "total_pages": 0,
+        "has_next": False,
+        "has_prev": False,
     }
+
+    try:
+        query = db.query(CampaignExpenditure)
+
+        if payee:
+            search_term = f"%{payee.lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(CampaignExpenditure.payee_name).like(search_term),
+                    func.lower(CampaignExpenditure.payee_name_normalized).like(search_term),
+                )
+            )
+
+        if committee:
+            search_term = f"%{committee.lower()}%"
+            query = query.filter(
+                func.lower(CampaignExpenditure.committee_name).like(search_term)
+            )
+
+        if purpose:
+            search_term = f"%{purpose.lower()}%"
+            query = query.filter(
+                func.lower(CampaignExpenditure.purpose).like(search_term)
+            )
+
+        if city:
+            query = query.filter(func.lower(CampaignExpenditure.city) == city.lower())
+
+        if min_amount is not None:
+            query = query.filter(CampaignExpenditure.amount >= min_amount)
+
+        if max_amount is not None:
+            query = query.filter(CampaignExpenditure.amount <= max_amount)
+
+        if year_from is not None:
+            query = query.filter(CampaignExpenditure.report_year >= year_from)
+
+        if year_to is not None:
+            query = query.filter(CampaignExpenditure.report_year <= year_to)
+
+        # Get total count
+        total_count = query.count()
+
+        # Apply pagination and ordering
+        expenditures = query.order_by(desc(CampaignExpenditure.amount)).offset(
+            (page - 1) * page_size
+        ).limit(page_size).all()
+
+        total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+
+        return {
+            "items": [
+                {
+                    "id": e.id,
+                    "committee_name": e.committee_name,
+                    "candidate_name": f"{e.candidate_first or ''} {e.candidate_last or ''}".strip() or None,
+                    "party": e.party,
+                    "office": e.office,
+                    "payee_name": e.payee_name or f"{e.payee_first or ''} ".strip(),
+                    "city": e.city,
+                    "state": e.state,
+                    "amount": float(e.amount),
+                    "expenditure_date": e.expenditure_date.isoformat() if e.expenditure_date else None,
+                    "purpose": e.purpose,
+                    "report_year": e.report_year,
+                }
+                for e in expenditures
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+        }
+    except Exception:
+        return empty_response
 
 
 @router.get("/campaign-finance/expenditure-stats")
@@ -663,36 +706,47 @@ async def get_expenditure_stats(db: Session = Depends(get_db)):
     """
     Get summary statistics for campaign expenditure data.
     """
-    total = db.query(func.count(CampaignExpenditure.id)).scalar() or 0
-    total_amount = db.query(func.sum(CampaignExpenditure.amount)).scalar() or 0
+    try:
+        total = db.query(func.count(CampaignExpenditure.id)).scalar() or 0
+        total_amount = db.query(func.sum(CampaignExpenditure.amount)).scalar() or 0
 
-    year_range = db.query(
-        func.min(CampaignExpenditure.report_year),
-        func.max(CampaignExpenditure.report_year)
-    ).first()
+        year_range = db.query(
+            func.min(CampaignExpenditure.report_year),
+            func.max(CampaignExpenditure.report_year)
+        ).first()
 
-    # Top purposes
-    top_purposes = db.query(
-        CampaignExpenditure.purpose,
-        func.count(CampaignExpenditure.id).label("count"),
-        func.sum(CampaignExpenditure.amount).label("total")
-    ).filter(
-        CampaignExpenditure.purpose.isnot(None)
-    ).group_by(
-        CampaignExpenditure.purpose
-    ).order_by(
-        desc("total")
-    ).limit(10).all()
+        # Top purposes
+        top_purposes = db.query(
+            CampaignExpenditure.purpose,
+            func.count(CampaignExpenditure.id).label("count"),
+            func.sum(CampaignExpenditure.amount).label("total")
+        ).filter(
+            CampaignExpenditure.purpose.isnot(None)
+        ).group_by(
+            CampaignExpenditure.purpose
+        ).order_by(
+            desc("total")
+        ).limit(10).all()
 
-    return {
-        "total_expenditures": total,
-        "total_amount": float(total_amount),
-        "data_coverage": {
-            "start_year": year_range[0] if year_range and year_range[0] else None,
-            "end_year": year_range[1] if year_range and year_range[1] else None,
-        },
-        "top_purposes": [
-            {"purpose": p.purpose, "count": p.count, "total": float(p.total or 0)}
-            for p in top_purposes
-        ],
-    }
+        return {
+            "total_expenditures": total,
+            "total_amount": float(total_amount),
+            "data_coverage": {
+                "start_year": year_range[0] if year_range and year_range[0] else None,
+                "end_year": year_range[1] if year_range and year_range[1] else None,
+            },
+            "top_purposes": [
+                {"purpose": p.purpose, "count": p.count, "total": float(p.total or 0)}
+                for p in top_purposes
+            ],
+        }
+    except Exception:
+        return {
+            "total_expenditures": 0,
+            "total_amount": 0,
+            "data_coverage": {
+                "start_year": None,
+                "end_year": None,
+            },
+            "top_purposes": [],
+        }
