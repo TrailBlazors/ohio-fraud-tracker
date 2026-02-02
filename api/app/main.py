@@ -128,6 +128,11 @@ async def page_politicians():
     return serve_page("politicians")
 
 
+@app.get("/campaign-finance")
+async def page_campaign_finance():
+    return serve_page("campaign-finance")
+
+
 @app.get("/submit-tip")
 async def page_submit_tip():
     return serve_page("submit-tip")
@@ -224,6 +229,19 @@ async def page_red_flags_funding_before_formation():
         raise HTTPException(status_code=404, detail="Frontend not available")
 
     index_path = STATIC_DIR / "red-flags" / "funding-before-formation" / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path, media_type="text/html")
+
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
+@app.get("/red-flags/political-donors")
+async def page_red_flags_political_donors():
+    """Serve political donors analysis page"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend not available")
+
+    index_path = STATIC_DIR / "red-flags" / "political-donors" / "index.html"
     if index_path.is_file():
         return FileResponse(index_path, media_type="text/html")
 
