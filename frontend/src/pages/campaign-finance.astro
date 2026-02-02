@@ -1,0 +1,545 @@
+---
+import DashboardLayout from '../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout
+  title="Campaign Finance Data - Ohio Fraud Tracker"
+  description="Browse Ohio campaign finance data. Search contributions to political campaigns and campaign expenditures. Data from Ohio Secretary of State."
+  keywords="Ohio campaign finance, political contributions Ohio, campaign expenditures, Ohio SOS campaign data"
+>
+  <div class="mb-6">
+    <div class="flex items-center gap-3 mb-2">
+      <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900">
+        <svg class="w-6 h-6 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"></path>
+        </svg>
+      </span>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Campaign Finance</h1>
+        <p class="text-gray-500 dark:text-gray-400">Browse Ohio campaign contributions and expenditures</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Total Contributions</p>
+      <p id="stat-contributions" class="text-2xl font-bold text-blue-600 dark:text-blue-400">-</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Contribution Amount</p>
+      <p id="stat-contribution-amt" class="text-2xl font-bold text-green-600 dark:text-green-400">-</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Total Expenditures</p>
+      <p id="stat-expenditures" class="text-2xl font-bold text-amber-600 dark:text-amber-400">-</p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Expenditure Amount</p>
+      <p id="stat-expenditure-amt" class="text-2xl font-bold text-red-600 dark:text-red-400">-</p>
+    </div>
+  </div>
+
+  <!-- Data Source Banner -->
+  <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+    <div class="flex items-start gap-3">
+      <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+      </svg>
+      <div>
+        <h3 class="font-semibold text-blue-800 dark:text-blue-200">Data Source: Ohio Secretary of State</h3>
+        <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+          Campaign finance filings from Ohio SOS.
+          <a href="https://www.ohiosos.gov/campaign-finance/" target="_blank" class="underline">View source</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+    <ul class="flex flex-wrap -mb-px text-sm font-medium text-center">
+      <li class="mr-2">
+        <button id="tab-contributions" class="inline-flex items-center gap-2 p-4 border-b-2 border-primary-600 text-primary-600 dark:text-primary-400 dark:border-primary-400 rounded-t-lg active" aria-current="page">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"></path>
+            <path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"></path>
+          </svg>
+          Contributions
+        </button>
+      </li>
+      <li class="mr-2">
+        <button id="tab-expenditures" class="inline-flex items-center gap-2 p-4 border-b-2 border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 text-gray-500 dark:text-gray-400 rounded-t-lg">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"></path>
+          </svg>
+          Expenditures
+        </button>
+      </li>
+    </ul>
+  </div>
+
+  <!-- Contributions Panel -->
+  <div id="panel-contributions">
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
+      <form id="contributions-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div class="sm:col-span-2 lg:col-span-1">
+          <label for="contrib-search" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Contributor</label>
+          <input type="text" id="contrib-search"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Search contributor..." />
+        </div>
+        <div>
+          <label for="contrib-committee" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Committee</label>
+          <input type="text" id="contrib-committee"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Committee name..." />
+        </div>
+        <div>
+          <label for="contrib-min" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Min Amount</label>
+          <select id="contrib-min"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">Any</option>
+            <option value="100">$100+</option>
+            <option value="500">$500+</option>
+            <option value="1000">$1,000+</option>
+            <option value="5000">$5,000+</option>
+            <option value="10000">$10,000+</option>
+          </select>
+        </div>
+        <div>
+          <label for="contrib-year" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Year</label>
+          <select id="contrib-year"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">All Years</option>
+          </select>
+        </div>
+        <div class="flex items-end sm:col-span-2 lg:col-span-1">
+          <button type="submit" class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5">
+            Search
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Results info -->
+    <div class="flex justify-between items-center mb-4">
+      <p id="contrib-results-info" class="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+    </div>
+
+    <!-- Loading State -->
+    <div id="contrib-loading" class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="animate-pulse">
+        <div class="h-12 bg-gray-100 dark:bg-gray-700"></div>
+        {[1,2,3,4,5].map(() => (
+          <div class="border-t border-gray-200 dark:border-gray-700 p-4 flex gap-4">
+            <div class="h-4 w-1/4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div class="h-4 w-1/6 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div class="h-4 w-1/4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div class="h-4 w-1/6 bg-gray-200 dark:bg-gray-600 rounded"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Results Table -->
+    <div id="contrib-results" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+            <tr class="text-gray-600 dark:text-gray-300">
+              <th class="px-4 py-3">Contributor</th>
+              <th class="px-4 py-3">Committee</th>
+              <th class="px-4 py-3 text-right">Amount</th>
+              <th class="px-4 py-3">Date</th>
+              <th class="px-4 py-3">Employer</th>
+            </tr>
+          </thead>
+          <tbody id="contrib-table" class="divide-y divide-gray-200 dark:divide-gray-700">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="contrib-pagination" class="hidden flex justify-between items-center mt-4">
+      <p id="contrib-page-info" class="text-sm text-gray-500 dark:text-gray-400"></p>
+      <div class="flex gap-2">
+        <button id="contrib-prev" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Previous
+        </button>
+        <button id="contrib-next" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expenditures Panel -->
+  <div id="panel-expenditures" class="hidden">
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-6">
+      <form id="expenditures-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div class="sm:col-span-2 lg:col-span-1">
+          <label for="exp-search" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Payee</label>
+          <input type="text" id="exp-search"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Search payee..." />
+        </div>
+        <div>
+          <label for="exp-committee" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Committee</label>
+          <input type="text" id="exp-committee"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Committee name..." />
+        </div>
+        <div>
+          <label for="exp-purpose" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Purpose</label>
+          <input type="text" id="exp-purpose"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="e.g. advertising..." />
+        </div>
+        <div>
+          <label for="exp-min" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Min Amount</label>
+          <select id="exp-min"
+            class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            <option value="">Any</option>
+            <option value="100">$100+</option>
+            <option value="500">$500+</option>
+            <option value="1000">$1,000+</option>
+            <option value="5000">$5,000+</option>
+            <option value="10000">$10,000+</option>
+          </select>
+        </div>
+        <div class="flex items-end sm:col-span-2 lg:col-span-1">
+          <button type="submit" class="w-full text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 font-medium rounded-lg text-sm px-5 py-2.5">
+            Search
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Results info -->
+    <div class="flex justify-between items-center mb-4">
+      <p id="exp-results-info" class="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+    </div>
+
+    <!-- Loading State -->
+    <div id="exp-loading" class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="animate-pulse">
+        <div class="h-12 bg-gray-100 dark:bg-gray-700"></div>
+        {[1,2,3,4,5].map(() => (
+          <div class="border-t border-gray-200 dark:border-gray-700 p-4 flex gap-4">
+            <div class="h-4 w-1/4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div class="h-4 w-1/6 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div class="h-4 w-1/4 bg-gray-200 dark:bg-gray-600 rounded"></div>
+            <div class="h-4 w-1/6 bg-gray-200 dark:bg-gray-600 rounded"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Results Table -->
+    <div id="exp-results" class="hidden bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-700">
+            <tr class="text-gray-600 dark:text-gray-300">
+              <th class="px-4 py-3">Payee</th>
+              <th class="px-4 py-3">Committee</th>
+              <th class="px-4 py-3 text-right">Amount</th>
+              <th class="px-4 py-3">Date</th>
+              <th class="px-4 py-3">Purpose</th>
+            </tr>
+          </thead>
+          <tbody id="exp-table" class="divide-y divide-gray-200 dark:divide-gray-700">
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div id="exp-pagination" class="hidden flex justify-between items-center mt-4">
+      <p id="exp-page-info" class="text-sm text-gray-500 dark:text-gray-400"></p>
+      <div class="flex gap-2">
+        <button id="exp-prev" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Previous
+        </button>
+        <button id="exp-next" class="px-4 py-2 text-sm font-medium rounded-lg border bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 disabled:opacity-50">
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Link to analysis -->
+  <div class="mt-8 text-center">
+    <a href="/red-flags/political-donors" class="text-primary-600 hover:text-primary-700 dark:text-primary-400 inline-flex items-center gap-2">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M3 6a3 3 0 013-3h10a1 1 0 01.8 1.6L14.25 8l2.55 3.4A1 1 0 0116 13H6a1 1 0 00-1 1v3a1 1 0 11-2 0V6z" clip-rule="evenodd"></path>
+      </svg>
+      View Pay-to-Play Analysis (Political Donors)
+    </a>
+  </div>
+</DashboardLayout>
+
+<style>
+  :global(html.dark) table tbody td {
+    color: #d1d5db !important;
+  }
+  :global(html.dark) table tbody td .font-medium {
+    color: #ffffff !important;
+  }
+</style>
+
+<script>
+  const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+
+  let contribPage = 1;
+  let expPage = 1;
+  const pageSize = 25;
+
+  function formatCurrency(amount) {
+    if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(2)}B`;
+    if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(2)}M`;
+    if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`;
+    return `$${amount.toLocaleString()}`;
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  // Load stats
+  async function loadStats() {
+    try {
+      const [contribStats, expStats] = await Promise.all([
+        fetch(`${apiBase}/api/campaign-finance/stats`).then(r => r.json()),
+        fetch(`${apiBase}/api/campaign-finance/expenditure-stats`).then(r => r.json())
+      ]);
+
+      document.getElementById('stat-contributions').textContent = contribStats.total_contributions.toLocaleString();
+      document.getElementById('stat-contribution-amt').textContent = formatCurrency(contribStats.total_amount);
+      document.getElementById('stat-expenditures').textContent = expStats.total_expenditures.toLocaleString();
+      document.getElementById('stat-expenditure-amt').textContent = formatCurrency(expStats.total_amount);
+
+      // Populate year filter
+      const yearSelect = document.getElementById('contrib-year');
+      if (contribStats.data_coverage.start_year && contribStats.data_coverage.end_year) {
+        for (let y = contribStats.data_coverage.end_year; y >= contribStats.data_coverage.start_year; y--) {
+          const opt = document.createElement('option');
+          opt.value = y;
+          opt.textContent = y;
+          yearSelect.appendChild(opt);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    }
+  }
+
+  // Load contributions
+  async function loadContributions() {
+    const loading = document.getElementById('contrib-loading');
+    const results = document.getElementById('contrib-results');
+    const info = document.getElementById('contrib-results-info');
+    const pagination = document.getElementById('contrib-pagination');
+
+    loading.classList.remove('hidden');
+    results.classList.add('hidden');
+
+    const params = new URLSearchParams();
+    const search = document.getElementById('contrib-search').value;
+    const committee = document.getElementById('contrib-committee').value;
+    const minAmount = document.getElementById('contrib-min').value;
+    const year = document.getElementById('contrib-year').value;
+
+    if (search) params.set('contributor', search);
+    if (committee) params.set('committee', committee);
+    if (minAmount) params.set('min_amount', minAmount);
+    if (year) {
+      params.set('year_from', year);
+      params.set('year_to', year);
+    }
+    params.set('page', contribPage);
+    params.set('page_size', pageSize);
+
+    try {
+      const response = await fetch(`${apiBase}/api/campaign-finance/contributions?${params}`);
+      const data = await response.json();
+
+      const tbody = document.getElementById('contrib-table');
+      if (data.items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No contributions found</td></tr>`;
+      } else {
+        tbody.innerHTML = data.items.map(c => `
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3">
+              <div class="font-medium text-gray-900 dark:text-white">${c.contributor_name || '-'}</div>
+              <div class="text-xs text-gray-500">${c.city || ''} ${c.state || ''}</div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="text-gray-900 dark:text-gray-100">${c.committee_name || '-'}</div>
+              ${c.candidate_name ? `<div class="text-xs text-gray-500">${c.candidate_name}</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-green-600 dark:text-green-400">
+              ${formatCurrency(c.amount)}
+            </td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${formatDate(c.contribution_date)}</td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">${c.employer || '-'}</td>
+          </tr>
+        `).join('');
+      }
+
+      const startIdx = (contribPage - 1) * pageSize + 1;
+      const endIdx = Math.min(contribPage * pageSize, data.total_count);
+      info.textContent = data.total_count > 0
+        ? `Showing ${startIdx}-${endIdx} of ${data.total_count.toLocaleString()} contributions`
+        : 'No contributions found';
+
+      if (data.total_count > pageSize) {
+        pagination.classList.remove('hidden');
+        document.getElementById('contrib-page-info').textContent = `Page ${contribPage} of ${data.total_pages}`;
+        document.getElementById('contrib-prev').disabled = !data.has_prev;
+        document.getElementById('contrib-next').disabled = !data.has_next;
+      } else {
+        pagination.classList.add('hidden');
+      }
+
+      loading.classList.add('hidden');
+      results.classList.remove('hidden');
+    } catch (err) {
+      console.error('Failed to load contributions:', err);
+      info.textContent = 'Error loading contributions';
+      loading.classList.add('hidden');
+    }
+  }
+
+  // Load expenditures
+  async function loadExpenditures() {
+    const loading = document.getElementById('exp-loading');
+    const results = document.getElementById('exp-results');
+    const info = document.getElementById('exp-results-info');
+    const pagination = document.getElementById('exp-pagination');
+
+    loading.classList.remove('hidden');
+    results.classList.add('hidden');
+
+    const params = new URLSearchParams();
+    const search = document.getElementById('exp-search').value;
+    const committee = document.getElementById('exp-committee').value;
+    const purpose = document.getElementById('exp-purpose').value;
+    const minAmount = document.getElementById('exp-min').value;
+
+    if (search) params.set('payee', search);
+    if (committee) params.set('committee', committee);
+    if (purpose) params.set('purpose', purpose);
+    if (minAmount) params.set('min_amount', minAmount);
+    params.set('page', expPage);
+    params.set('page_size', pageSize);
+
+    try {
+      const response = await fetch(`${apiBase}/api/campaign-finance/expenditures?${params}`);
+      const data = await response.json();
+
+      const tbody = document.getElementById('exp-table');
+      if (data.items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No expenditures found</td></tr>`;
+      } else {
+        tbody.innerHTML = data.items.map(e => `
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3">
+              <div class="font-medium text-gray-900 dark:text-white">${e.payee_name || '-'}</div>
+              <div class="text-xs text-gray-500">${e.city || ''} ${e.state || ''}</div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="text-gray-900 dark:text-gray-100">${e.committee_name || '-'}</div>
+              ${e.candidate_name ? `<div class="text-xs text-gray-500">${e.candidate_name} (${e.party || ''})</div>` : ''}
+            </td>
+            <td class="px-4 py-3 text-right font-semibold text-amber-600 dark:text-amber-400">
+              ${formatCurrency(e.amount)}
+            </td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">${formatDate(e.expenditure_date)}</td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-xs truncate">${e.purpose || '-'}</td>
+          </tr>
+        `).join('');
+      }
+
+      const startIdx = (expPage - 1) * pageSize + 1;
+      const endIdx = Math.min(expPage * pageSize, data.total_count);
+      info.textContent = data.total_count > 0
+        ? `Showing ${startIdx}-${endIdx} of ${data.total_count.toLocaleString()} expenditures`
+        : 'No expenditures found';
+
+      if (data.total_count > pageSize) {
+        pagination.classList.remove('hidden');
+        document.getElementById('exp-page-info').textContent = `Page ${expPage} of ${data.total_pages}`;
+        document.getElementById('exp-prev').disabled = !data.has_prev;
+        document.getElementById('exp-next').disabled = !data.has_next;
+      } else {
+        pagination.classList.add('hidden');
+      }
+
+      loading.classList.add('hidden');
+      results.classList.remove('hidden');
+    } catch (err) {
+      console.error('Failed to load expenditures:', err);
+      info.textContent = 'Error loading expenditures';
+      loading.classList.add('hidden');
+    }
+  }
+
+  // Tab switching
+  document.getElementById('tab-contributions').addEventListener('click', () => {
+    document.getElementById('tab-contributions').classList.add('border-primary-600', 'text-primary-600', 'dark:text-primary-400', 'dark:border-primary-400');
+    document.getElementById('tab-contributions').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    document.getElementById('tab-expenditures').classList.remove('border-primary-600', 'text-primary-600', 'dark:text-primary-400', 'dark:border-primary-400');
+    document.getElementById('tab-expenditures').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    document.getElementById('panel-contributions').classList.remove('hidden');
+    document.getElementById('panel-expenditures').classList.add('hidden');
+  });
+
+  document.getElementById('tab-expenditures').addEventListener('click', () => {
+    document.getElementById('tab-expenditures').classList.add('border-primary-600', 'text-primary-600', 'dark:text-primary-400', 'dark:border-primary-400');
+    document.getElementById('tab-expenditures').classList.remove('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    document.getElementById('tab-contributions').classList.remove('border-primary-600', 'text-primary-600', 'dark:text-primary-400', 'dark:border-primary-400');
+    document.getElementById('tab-contributions').classList.add('border-transparent', 'text-gray-500', 'dark:text-gray-400');
+    document.getElementById('panel-expenditures').classList.remove('hidden');
+    document.getElementById('panel-contributions').classList.add('hidden');
+    loadExpenditures();
+  });
+
+  // Form submissions
+  document.getElementById('contributions-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    contribPage = 1;
+    loadContributions();
+  });
+
+  document.getElementById('expenditures-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    expPage = 1;
+    loadExpenditures();
+  });
+
+  // Pagination
+  document.getElementById('contrib-prev').addEventListener('click', () => {
+    if (contribPage > 1) { contribPage--; loadContributions(); }
+  });
+  document.getElementById('contrib-next').addEventListener('click', () => {
+    contribPage++; loadContributions();
+  });
+  document.getElementById('exp-prev').addEventListener('click', () => {
+    if (expPage > 1) { expPage--; loadExpenditures(); }
+  });
+  document.getElementById('exp-next').addEventListener('click', () => {
+    expPage++; loadExpenditures();
+  });
+
+  // Initial load
+  loadStats();
+  loadContributions();
+</script>

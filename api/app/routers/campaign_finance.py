@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, or_, and_
 
 from app.database import get_db
-from app.models import CampaignContribution, Politician, Recipient, Award, FraudFlag
+from app.models import CampaignContribution, CampaignExpenditure, Politician, Recipient, Award, FraudFlag
 
 router = APIRouter()
 
@@ -563,4 +563,136 @@ async def get_political_donors(
         "has_next": page < total_pages,
         "has_prev": page > 1,
         "data_coverage": f"{DATA_START_YEAR}-{DATA_END_YEAR}",
+    }
+
+
+@router.get("/campaign-finance/expenditures")
+async def search_expenditures(
+    payee: Optional[str] = Query(None, description="Payee name search"),
+    committee: Optional[str] = Query(None, description="Committee name search"),
+    purpose: Optional[str] = Query(None, description="Expenditure purpose"),
+    city: Optional[str] = Query(None, description="Payee city"),
+    min_amount: Optional[float] = Query(None, ge=0),
+    max_amount: Optional[float] = Query(None),
+    year_from: Optional[int] = Query(None, ge=1990),
+    year_to: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """
+    Search campaign expenditures with filters.
+    """
+    query = db.query(CampaignExpenditure)
+
+    if payee:
+        search_term = f"%{payee.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(CampaignExpenditure.payee_name).like(search_term),
+                func.lower(CampaignExpenditure.payee_name_normalized).like(search_term),
+            )
+        )
+
+    if committee:
+        search_term = f"%{committee.lower()}%"
+        query = query.filter(
+            func.lower(CampaignExpenditure.committee_name).like(search_term)
+        )
+
+    if purpose:
+        search_term = f"%{purpose.lower()}%"
+        query = query.filter(
+            func.lower(CampaignExpenditure.purpose).like(search_term)
+        )
+
+    if city:
+        query = query.filter(func.lower(CampaignExpenditure.city) == city.lower())
+
+    if min_amount is not None:
+        query = query.filter(CampaignExpenditure.amount >= min_amount)
+
+    if max_amount is not None:
+        query = query.filter(CampaignExpenditure.amount <= max_amount)
+
+    if year_from is not None:
+        query = query.filter(CampaignExpenditure.report_year >= year_from)
+
+    if year_to is not None:
+        query = query.filter(CampaignExpenditure.report_year <= year_to)
+
+    # Get total count
+    total_count = query.count()
+
+    # Apply pagination and ordering
+    expenditures = query.order_by(desc(CampaignExpenditure.amount)).offset(
+        (page - 1) * page_size
+    ).limit(page_size).all()
+
+    total_pages = (total_count + page_size - 1) // page_size if total_count else 0
+
+    return {
+        "items": [
+            {
+                "id": e.id,
+                "committee_name": e.committee_name,
+                "candidate_name": f"{e.candidate_first or ''} {e.candidate_last or ''}".strip() or None,
+                "party": e.party,
+                "office": e.office,
+                "payee_name": e.payee_name or f"{e.payee_first or ''} ".strip(),
+                "city": e.city,
+                "state": e.state,
+                "amount": float(e.amount),
+                "expenditure_date": e.expenditure_date.isoformat() if e.expenditure_date else None,
+                "purpose": e.purpose,
+                "report_year": e.report_year,
+            }
+            for e in expenditures
+        ],
+        "page": page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "has_next": page < total_pages,
+        "has_prev": page > 1,
+    }
+
+
+@router.get("/campaign-finance/expenditure-stats")
+async def get_expenditure_stats(db: Session = Depends(get_db)):
+    """
+    Get summary statistics for campaign expenditure data.
+    """
+    total = db.query(func.count(CampaignExpenditure.id)).scalar() or 0
+    total_amount = db.query(func.sum(CampaignExpenditure.amount)).scalar() or 0
+
+    year_range = db.query(
+        func.min(CampaignExpenditure.report_year),
+        func.max(CampaignExpenditure.report_year)
+    ).first()
+
+    # Top purposes
+    top_purposes = db.query(
+        CampaignExpenditure.purpose,
+        func.count(CampaignExpenditure.id).label("count"),
+        func.sum(CampaignExpenditure.amount).label("total")
+    ).filter(
+        CampaignExpenditure.purpose.isnot(None)
+    ).group_by(
+        CampaignExpenditure.purpose
+    ).order_by(
+        desc("total")
+    ).limit(10).all()
+
+    return {
+        "total_expenditures": total,
+        "total_amount": float(total_amount),
+        "data_coverage": {
+            "start_year": year_range[0] if year_range and year_range[0] else None,
+            "end_year": year_range[1] if year_range and year_range[1] else None,
+        },
+        "top_purposes": [
+            {"purpose": p.purpose, "count": p.count, "total": float(p.total or 0)}
+            for p in top_purposes
+        ],
     }

@@ -23,6 +23,7 @@ const navItems = [
   { href: "/loans", label: "PPP Loans", icon: "currency-dollar" },
   { href: "/recipients", label: "Recipients", icon: "users" },
   { href: "/politicians", label: "Politicians", icon: "user-group" },
+  { href: "/campaign-finance", label: "Campaign Finance", icon: "banknotes" },
   { href: "/data-status", label: "Data Status", icon: "database" },
 ];
 
@@ -31,6 +32,7 @@ const redFlagsItems = [
   { href: "/duplicates", label: "Duplicate Awards", icon: "duplicate" },
   { href: "/red-flags/top-recipients", label: "Top Recipients", icon: "trophy" },
   { href: "/red-flags/funding-before-formation", label: "Pre-Formation Funding", icon: "calendar-x" },
+  { href: "/red-flags/political-donors", label: "Political Donors", icon: "banknotes" },
 ];
 
 // Check if current path is in red flags section
@@ -302,6 +304,11 @@ const structuredData = {
                   <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"></path>
                 </svg>
               )}
+              {item.icon === 'banknotes' && (
+                <svg class="w-5 h-5 transition duration-75" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M1 4a1 1 0 011-1h16a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1V4zm12 4a3 3 0 11-6 0 3 3 0 016 0zM4 9a1 1 0 100-2 1 1 0 000 2zm13-1a1 1 0 11-2 0 1 1 0 012 0zM1.75 14.5a.75.75 0 000 1.5c4.417 0 8.693.603 12.749 1.73 1.111.309 2.251-.512 2.251-1.696v-.784a.75.75 0 00-1.5 0v.784a.272.272 0 01-.35.25A49.043 49.043 0 001.75 14.5z" clip-rule="evenodd"></path>
+                </svg>
+              )}
               <span class="ms-3">{item.label}</span>
             </a>
           </li>
@@ -337,6 +344,11 @@ const structuredData = {
                     <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                       <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
                       <path d="M8.707 11.293a1 1 0 00-1.414 1.414L8.586 14l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l1.293 1.293a1 1 0 001.414-1.414L11.414 14l1.293-1.293a1 1 0 00-1.414-1.414L10 12.586l-1.293-1.293z"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'banknotes' && (
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M1 4a1 1 0 011-1h16a1 1 0 011 1v8a1 1 0 01-1 1H2a1 1 0 01-1-1V4zm12 4a3 3 0 11-6 0 3 3 0 016 0zM4 9a1 1 0 100-2 1 1 0 000 2zm13-1a1 1 0 11-2 0 1 1 0 012 0zM1.75 14.5a.75.75 0 000 1.5c4.417 0 8.693.603 12.749 1.73 1.111.309 2.251-.512 2.251-1.696v-.784a.75.75 0 00-1.5 0v.784a.272.272 0 01-.35.25A49.043 49.043 0 001.75 14.5z" clip-rule="evenodd"></path>
                     </svg>
                   )}
                   {item.label}
