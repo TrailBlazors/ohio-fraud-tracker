@@ -101,8 +101,15 @@ def parse_amount(amount_str: str) -> float:
 def create_tables():
     """Create the campaign finance tables if they don't exist."""
     print("Creating campaign finance tables...")
-    # Use checkfirst=True to avoid errors if tables/indexes already exist
-    Base.metadata.create_all(engine, checkfirst=True)
+    try:
+        # Use checkfirst=True to avoid errors if tables/indexes already exist
+        Base.metadata.create_all(engine, checkfirst=True)
+    except Exception as e:
+        # Ignore "already exists" errors (common with PostgreSQL indexes)
+        if "already exists" in str(e):
+            print(f"  Note: Some objects already exist, continuing...")
+        else:
+            raise
     print("  Tables ready")
 
 
