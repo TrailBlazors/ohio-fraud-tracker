@@ -206,7 +206,6 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700">
             <tr>
               <th class="px-4 py-3">Name</th>
-              <th class="px-4 py-3">Type</th>
               <th class="px-4 py-3">Specialty</th>
               <th class="px-4 py-3">Location</th>
               <th class="px-4 py-3">Exclusion Date</th>
@@ -519,7 +518,6 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
                 ${name || '—'}
                 ${idInfo ? `<br><span class="text-xs text-gray-400">${idInfo}</span>` : ''}
               </td>
-              <td class="px-4 py-3">${typeBadge(item.general_type)}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">${item.specialty || '—'}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">${location}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">${formatDate(item.exclusion_date)}</td>
