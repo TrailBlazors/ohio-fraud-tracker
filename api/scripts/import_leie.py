@@ -94,19 +94,18 @@ def normalize_name(name: str) -> str:
 
 
 def create_tables():
-    """Create the excluded_entities table if it doesn't exist."""
-    print("Creating excluded_entities table...")
+    """Drop and recreate the excluded_entities table to ensure sequence is correct."""
+    print("Recreating excluded_entities table...")
+    with engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS excluded_entities CASCADE"))
+        conn.commit()
     Base.metadata.create_all(engine, tables=[ExcludedEntity.__table__])
-    print("  ✓ Table created")
+    print("  ✓ Table ready")
 
 
 def import_leie_data(csv_content: str, db: Session) -> dict:
     """Import LEIE CSV data into the database."""
     print("Importing LEIE data...")
-    
-    # Clear existing data (full refresh each time)
-    deleted = db.query(ExcludedEntity).delete()
-    print(f"  Cleared {deleted:,} existing records")
     
     # Parse CSV
     reader = csv.DictReader(StringIO(csv_content))
@@ -138,29 +137,27 @@ def import_leie_data(csv_content: str, db: Session) -> dict:
                 ]
                 name_normalized = normalize_name(" ".join(p for p in name_parts if p))
             
-            entity = ExcludedEntity(
-                last_name=row.get("LASTNAME", "").strip() or None,
-                first_name=row.get("FIRSTNAME", "").strip() or None,
-                middle_name=row.get("MIDNAME", "").strip() or None,
-                business_name=row.get("BUSNAME", "").strip() or None,
-                name_normalized=name_normalized or None,
-                general_type=row.get("GENERAL", "").strip() or None,
-                specialty=row.get("SPECIALTY", "").strip() or None,
-                upin=row.get("UPIN", "").strip() or None,
-                npi=row.get("NPI", "").strip() or None,
-                dob=parse_date(row.get("DOB", "")),
-                address=row.get("ADDRESS", "").strip() or None,
-                city=row.get("CITY", "").strip() or None,
-                state=row.get("STATE", "").strip() or None,
-                zip_code=row.get("ZIP", "").strip() or None,
-                exclusion_type=row.get("EXCLTYPE", "").strip() or None,
-                exclusion_date=parse_date(row.get("EXCLDATE", "")),
-                reinstatement_date=parse_date(row.get("REINDATE", "")),
-                waiver_date=parse_date(row.get("WAIVERDATE", "")),
-                waiver_state=row.get("WVRSTATE", "").strip() or None,
-            )
-            
-            batch.append(entity)
+            batch.append({
+                "last_name": row.get("LASTNAME", "").strip() or None,
+                "first_name": row.get("FIRSTNAME", "").strip() or None,
+                "middle_name": row.get("MIDNAME", "").strip() or None,
+                "business_name": row.get("BUSNAME", "").strip() or None,
+                "name_normalized": name_normalized or None,
+                "general_type": row.get("GENERAL", "").strip() or None,
+                "specialty": row.get("SPECIALTY", "").strip() or None,
+                "upin": row.get("UPIN", "").strip() or None,
+                "npi": row.get("NPI", "").strip() or None,
+                "dob": parse_date(row.get("DOB", "")),
+                "address": row.get("ADDRESS", "").strip() or None,
+                "city": row.get("CITY", "").strip() or None,
+                "state": row.get("STATE", "").strip() or None,
+                "zip_code": row.get("ZIP", "").strip() or None,
+                "exclusion_type": row.get("EXCLTYPE", "").strip() or None,
+                "exclusion_date": parse_date(row.get("EXCLDATE", "")),
+                "reinstatement_date": parse_date(row.get("REINDATE", "")),
+                "waiver_date": parse_date(row.get("WAIVERDATE", "")),
+                "waiver_state": row.get("WVRSTATE", "").strip() or None,
+            })
             
             # Track stats
             if row.get("GENERAL") == "INDIV":
@@ -173,7 +170,7 @@ def import_leie_data(csv_content: str, db: Session) -> dict:
             
             # Commit in batches
             if len(batch) >= batch_size:
-                db.bulk_save_objects(batch)
+                db.bulk_insert_mappings(ExcludedEntity, batch)
                 db.commit()
                 print(f"    Imported {stats['total']:,} records...", end="\r")
                 batch = []
@@ -185,7 +182,7 @@ def import_leie_data(csv_content: str, db: Session) -> dict:
     
     # Final batch
     if batch:
-        db.bulk_save_objects(batch)
+        db.bulk_insert_mappings(ExcludedEntity, batch)
         db.commit()
     
     print(f"  ✓ Imported {stats['total']:,} total records")
