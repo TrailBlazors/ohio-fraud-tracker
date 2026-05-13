@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.database import get_db_info, init_db
-from app.routers import awards, recipients, stats, health, naics, correlation, tips, ai, campaign_finance
+from app.routers import awards, recipients, stats, health, naics, correlation, tips, ai, campaign_finance, exclusions
 from app.middleware import BotBlockerMiddleware
 
 # =============================================================================
@@ -52,6 +52,7 @@ app.include_router(correlation.router, prefix="/api", tags=["Correlation & Fraud
 app.include_router(tips.router, prefix="/api", tags=["Tips"])
 app.include_router(ai.router, prefix="/api", tags=["AI Analysis"])
 app.include_router(campaign_finance.router, prefix="/api", tags=["Campaign Finance"])
+app.include_router(exclusions.router, prefix="/api", tags=["LEIE Exclusions"])
 
 
 # =============================================================================
@@ -242,6 +243,19 @@ async def page_red_flags_political_donors():
         raise HTTPException(status_code=404, detail="Frontend not available")
 
     index_path = STATIC_DIR / "red-flags" / "political-donors" / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path, media_type="text/html")
+
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
+@app.get("/red-flags/excluded-entities")
+async def page_red_flags_excluded_entities():
+    """Serve OIG LEIE excluded entities page"""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend not available")
+
+    index_path = STATIC_DIR / "red-flags" / "excluded-entities" / "index.html"
     if index_path.is_file():
         return FileResponse(index_path, media_type="text/html")
 

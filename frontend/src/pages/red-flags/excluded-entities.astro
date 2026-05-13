@@ -1,0 +1,532 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout
+  title="Excluded Entities"
+  description="Ohio recipients cross-referenced against the HHS OIG List of Excluded Individuals/Entities (LEIE) — providers banned from federal healthcare programs."
+  keywords="Ohio Medicaid fraud, excluded providers Ohio, OIG LEIE Ohio, excluded Medicare providers, healthcare fraud Ohio"
+>
+
+<div class="max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="flex-shrink-0 w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">
+        <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+          <path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"></path>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Excluded Entities</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400">HHS OIG List of Excluded Individuals/Entities (LEIE)</p>
+      </div>
+    </div>
+    <div class="mt-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+      <p class="text-sm text-amber-800 dark:text-amber-300">
+        <span class="font-semibold">What is the LEIE?</span> The OIG maintains a list of individuals and entities that have been excluded from participating in Medicare, Medicaid, and other federal healthcare programs — typically due to fraud, abuse, or criminal convictions. Any federal award to an excluded entity is a potential violation.
+      </p>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div id="stats-loading" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 animate-pulse">
+      <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+      <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 animate-pulse">
+      <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+      <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 animate-pulse">
+      <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2"></div>
+      <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+    </div>
+  </div>
+  <div id="stats-cards" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Excluded Nationwide</p>
+      <p id="stat-total" class="text-2xl font-bold text-gray-900 dark:text-white mt-1">—</p>
+      <p id="stat-active" class="text-xs text-gray-400 dark:text-gray-500 mt-1"></p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Ohio Exclusions</p>
+      <p id="stat-ohio" class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">—</p>
+      <p id="stat-types" class="text-xs text-gray-400 dark:text-gray-500 mt-1"></p>
+    </div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <p class="text-sm text-gray-500 dark:text-gray-400">Recipients Flagged</p>
+      <p id="stat-flagged" class="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">—</p>
+      <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">matched against award recipients</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+    <ul class="flex flex-wrap -mb-px text-sm font-medium text-center">
+      <li class="mr-2">
+        <button id="tab-matches" onclick="switchTab('matches')"
+          class="inline-flex items-center gap-2 p-4 border-b-2 border-red-600 text-red-600 dark:text-red-400 dark:border-red-400 rounded-t-lg active">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+          </svg>
+          Flagged Recipients
+        </button>
+      </li>
+      <li class="mr-2">
+        <button id="tab-browse" onclick="switchTab('browse')"
+          class="inline-flex items-center gap-2 p-4 border-b-2 border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 rounded-t-lg">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z"></path>
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path>
+          </svg>
+          Browse LEIE
+        </button>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TAB: Flagged Recipients -->
+  <!-- ============================================================ -->
+  <div id="panel-matches">
+
+    <!-- Error -->
+    <div id="matches-error" class="hidden mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400"></div>
+
+    <!-- Loading -->
+    <div id="matches-loading" class="flex items-center justify-center py-12">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+      <span class="ml-3 text-gray-500 dark:text-gray-400">Loading flagged recipients...</span>
+    </div>
+
+    <!-- Content -->
+    <div id="matches-content" class="hidden">
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-4 py-3">Recipient</th>
+              <th class="px-4 py-3">Location</th>
+              <th class="px-4 py-3">Total Funding</th>
+              <th class="px-4 py-3">Matched Exclusion</th>
+              <th class="px-4 py-3">Exclusion Date</th>
+              <th class="px-4 py-3">Type</th>
+            </tr>
+          </thead>
+          <tbody id="matches-tbody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+
+      <!-- Empty state -->
+      <div id="matches-empty" class="hidden text-center py-12 text-gray-500 dark:text-gray-400">
+        <svg class="mx-auto w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="font-medium">No flagged recipients found</p>
+        <p class="text-sm mt-1">Run the LEIE import script to cross-reference recipients.</p>
+      </div>
+
+      <!-- Pagination -->
+      <div id="matches-pagination" class="hidden flex items-center justify-between mt-4 px-1">
+        <span id="matches-page-info" class="text-sm text-gray-500 dark:text-gray-400"></span>
+        <div class="flex gap-2">
+          <button id="matches-prev" onclick="navigateMatches(-1)"
+            class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            Previous
+          </button>
+          <button id="matches-next" onclick="navigateMatches(1)"
+            class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TAB: Browse LEIE -->
+  <!-- ============================================================ -->
+  <div id="panel-browse" class="hidden">
+
+    <!-- Filters -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
+      <div class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-48">
+          <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search Name</label>
+          <input id="browse-search" type="text" placeholder="Search by name..."
+            class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-red-500 focus:border-red-500 dark:text-white"
+            oninput="debounceBrowse()" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">State</label>
+          <select id="browse-state" onchange="loadBrowse(1)"
+            class="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-red-500 focus:border-red-500 dark:text-white">
+            <option value="OH">Ohio</option>
+            <option value="all">All States</option>
+            <option value="KY">Kentucky</option>
+            <option value="IN">Indiana</option>
+            <option value="PA">Pennsylvania</option>
+            <option value="WV">West Virginia</option>
+            <option value="MI">Michigan</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+          <select id="browse-type" onchange="loadBrowse(1)"
+            class="px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-red-500 focus:border-red-500 dark:text-white">
+            <option value="">All</option>
+            <option value="INDIV">Individuals</option>
+            <option value="ENTITY">Entities</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2 pb-1">
+          <input id="browse-active" type="checkbox" checked onchange="loadBrowse(1)"
+            class="w-4 h-4 text-red-600 border-gray-300 dark:border-gray-600 rounded focus:ring-red-500" />
+          <label for="browse-active" class="text-sm text-gray-700 dark:text-gray-300">Active only</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="browse-error" class="hidden mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-400"></div>
+
+    <!-- Loading -->
+    <div id="browse-loading" class="hidden flex items-center justify-center py-12">
+      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+      <span class="ml-3 text-gray-500 dark:text-gray-400">Loading...</span>
+    </div>
+
+    <!-- Content -->
+    <div id="browse-content" class="hidden">
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="text-xs text-gray-700 dark:text-gray-300 uppercase bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-4 py-3">Name</th>
+              <th class="px-4 py-3">Type</th>
+              <th class="px-4 py-3">Specialty</th>
+              <th class="px-4 py-3">Location</th>
+              <th class="px-4 py-3">Exclusion Date</th>
+              <th class="px-4 py-3">Reason</th>
+              <th class="px-4 py-3">Status</th>
+            </tr>
+          </thead>
+          <tbody id="browse-tbody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+
+      <!-- Empty state -->
+      <div id="browse-empty" class="hidden text-center py-12 text-gray-500 dark:text-gray-400">
+        <p class="font-medium">No exclusions found</p>
+        <p class="text-sm mt-1">Try adjusting your filters or running the LEIE import script.</p>
+      </div>
+
+      <!-- Pagination -->
+      <div id="browse-pagination" class="hidden flex items-center justify-between mt-4 px-1">
+        <span id="browse-page-info" class="text-sm text-gray-500 dark:text-gray-400"></span>
+        <div class="flex gap-2">
+          <button id="browse-prev" onclick="navigateBrowse(-1)"
+            class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            Previous
+          </button>
+          <button id="browse-next" onclick="navigateBrowse(1)"
+            class="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script is:inline>
+  const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
+
+  // Exclusion type → human label
+  const EXCL_TYPE_LABELS = {
+    '1128a1': 'Program fraud conviction',
+    '1128a2': 'Patient abuse conviction',
+    '1128a3': 'Healthcare fraud felony',
+    '1128a4': 'Controlled substance felony',
+    '1128b1': 'Healthcare fraud misdemeanor',
+    '1128b2': 'Controlled substance misdemeanor',
+    '1128b4': 'License revocation',
+    '1128b5': 'Federal agency exclusion',
+    '1128b6': 'Excess charges/services',
+    '1128b7': 'Fraud / kickbacks',
+    '1128b14': 'Education loan default',
+    '1128b15': 'Owned by excluded entity',
+    '1128b16': 'Affiliated with excluded entity',
+  };
+
+  function formatCurrency(n) {
+    if (!n) return '$0';
+    if (n >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+    return '$' + n.toFixed(0);
+  }
+
+  function formatDate(s) {
+    if (!s) return '—';
+    const d = new Date(s + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function exclTypeBadge(code) {
+    const label = EXCL_TYPE_LABELS[code] || code || 'Unknown';
+    const isConviction = code && (code.startsWith('1128a') || code === '1128b7');
+    const isLicense = code === '1128b4' || code === '1128b5';
+    const color = isConviction
+      ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
+      : isLicense
+        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300'
+        : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+    return `<span class="px-2 py-0.5 rounded text-xs font-medium ${color}" title="${code || ''}">${label}</span>`;
+  }
+
+  function typeBadge(t) {
+    if (t === 'INDIV') return '<span class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">Individual</span>';
+    if (t === 'ENTITY') return '<span class="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">Entity</span>';
+    return '<span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700">Unknown</span>';
+  }
+
+  // ===== STATS =====
+  async function loadStats() {
+    try {
+      const res = await fetch(`${apiBase}/api/exclusions/stats`);
+      const data = await res.json();
+      document.getElementById('stat-total').textContent = data.total.toLocaleString();
+      document.getElementById('stat-active').textContent = data.active_count.toLocaleString() + ' currently active';
+      document.getElementById('stat-ohio').textContent = data.ohio_count.toLocaleString();
+      document.getElementById('stat-types').textContent =
+        data.individuals.toLocaleString() + ' individuals · ' + data.entities.toLocaleString() + ' entities';
+      document.getElementById('stat-flagged').textContent = data.flagged_recipients.toLocaleString();
+      document.getElementById('stats-loading').classList.add('hidden');
+      document.getElementById('stats-cards').classList.remove('hidden');
+      document.getElementById('stats-cards').style.display = 'grid';
+    } catch (e) {
+      document.getElementById('stats-loading').classList.add('hidden');
+    }
+  }
+
+  // ===== TAB SWITCHING =====
+  function switchTab(tab) {
+    const tabMatches = document.getElementById('tab-matches');
+    const tabBrowse = document.getElementById('tab-browse');
+    const panelMatches = document.getElementById('panel-matches');
+    const panelBrowse = document.getElementById('panel-browse');
+
+    const activeClasses = ['border-red-600', 'text-red-600', 'dark:text-red-400', 'dark:border-red-400'];
+    const inactiveClasses = ['border-transparent', 'text-gray-500', 'dark:text-gray-400',
+      'hover:text-gray-700', 'dark:hover:text-gray-300', 'hover:border-gray-300', 'dark:hover:border-gray-600'];
+
+    if (tab === 'matches') {
+      activeClasses.forEach(c => tabMatches.classList.add(c));
+      inactiveClasses.forEach(c => tabMatches.classList.remove(c));
+      inactiveClasses.forEach(c => tabBrowse.classList.add(c));
+      activeClasses.forEach(c => tabBrowse.classList.remove(c));
+      panelMatches.classList.remove('hidden');
+      panelBrowse.classList.add('hidden');
+    } else {
+      activeClasses.forEach(c => tabBrowse.classList.add(c));
+      inactiveClasses.forEach(c => tabBrowse.classList.remove(c));
+      inactiveClasses.forEach(c => tabMatches.classList.add(c));
+      activeClasses.forEach(c => tabMatches.classList.remove(c));
+      panelBrowse.classList.remove('hidden');
+      panelMatches.classList.add('hidden');
+      if (!browseLoaded) {
+        browseLoaded = true;
+        loadBrowse(1);
+      }
+    }
+  }
+
+  // ===== MATCHES TAB =====
+  let matchesPage = 1;
+  const matchesPageSize = 25;
+  let matchesTotal = 0;
+
+  async function loadMatches() {
+    document.getElementById('matches-loading').classList.remove('hidden');
+    document.getElementById('matches-content').classList.add('hidden');
+    document.getElementById('matches-error').classList.add('hidden');
+
+    try {
+      const res = await fetch(`${apiBase}/api/exclusions/matches?page=${matchesPage}&page_size=${matchesPageSize}`);
+      if (!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      matchesTotal = data.total || 0;
+
+      const tbody = document.getElementById('matches-tbody');
+      const empty = document.getElementById('matches-empty');
+      const pagination = document.getElementById('matches-pagination');
+
+      if (!data.items || data.items.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        pagination.classList.add('hidden');
+      } else {
+        empty.classList.add('hidden');
+        tbody.innerHTML = data.items.map(item => `
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onclick="window.location='/recipients/view?id=${item.recipient_id}'">
+            <td class="px-4 py-3">
+              <a href="/recipients/view?id=${item.recipient_id}"
+                 class="font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                ${item.recipient_name || '—'}
+              </a>
+            </td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">
+              ${item.city || ''}${item.city && item.state ? ', ' : ''}${item.state || ''}
+            </td>
+            <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+              ${formatCurrency(item.total_amount)}
+              <span class="text-xs text-gray-400 ml-1">${item.award_count} award${item.award_count !== 1 ? 's' : ''}</span>
+            </td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">
+              ${item.excluded_name || '—'}
+              ${item.specialty ? `<br><span class="text-gray-400">${item.specialty}</span>` : ''}
+            </td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+              ${formatDate(item.exclusion_date)}
+            </td>
+            <td class="px-4 py-3">
+              ${exclTypeBadge(item.exclusion_type)}
+            </td>
+          </tr>
+        `).join('');
+
+        const totalPages = Math.ceil(matchesTotal / matchesPageSize);
+        document.getElementById('matches-page-info').textContent =
+          `Page ${matchesPage} of ${totalPages} (${matchesTotal.toLocaleString()} total)`;
+        document.getElementById('matches-prev').disabled = matchesPage <= 1;
+        document.getElementById('matches-next').disabled = matchesPage >= totalPages;
+        pagination.classList.remove('hidden');
+      }
+
+      document.getElementById('matches-loading').classList.add('hidden');
+      document.getElementById('matches-content').classList.remove('hidden');
+    } catch (e) {
+      document.getElementById('matches-loading').classList.add('hidden');
+      const err = document.getElementById('matches-error');
+      err.textContent = 'Error loading data. The LEIE import may not have been run yet.';
+      err.classList.remove('hidden');
+    }
+  }
+
+  function navigateMatches(dir) {
+    matchesPage += dir;
+    loadMatches();
+    window.scrollTo(0, 0);
+  }
+
+  // ===== BROWSE TAB =====
+  let browseLoaded = false;
+  let browsePage = 1;
+  const browsePageSize = 25;
+  let browseTotal = 0;
+  let browseDebounceTimer = null;
+
+  function debounceBrowse() {
+    clearTimeout(browseDebounceTimer);
+    browseDebounceTimer = setTimeout(() => loadBrowse(1), 350);
+  }
+
+  async function loadBrowse(page) {
+    browsePage = page || browsePage;
+
+    const q = document.getElementById('browse-search').value.trim();
+    const state = document.getElementById('browse-state').value;
+    const type = document.getElementById('browse-type').value;
+    const activeOnly = document.getElementById('browse-active').checked;
+
+    const params = new URLSearchParams({
+      page: browsePage,
+      page_size: browsePageSize,
+      fast: 'true',
+    });
+    if (q) params.set('q', q);
+    if (state) params.set('state', state);
+    if (type) params.set('general_type', type);
+    params.set('active_only', activeOnly ? 'true' : 'false');
+
+    document.getElementById('browse-loading').classList.remove('hidden');
+    document.getElementById('browse-content').classList.add('hidden');
+    document.getElementById('browse-error').classList.add('hidden');
+
+    try {
+      const res = await fetch(`${apiBase}/api/exclusions?${params}`);
+      if (!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      browseTotal = data.total || 0;
+
+      const tbody = document.getElementById('browse-tbody');
+      const empty = document.getElementById('browse-empty');
+      const pagination = document.getElementById('browse-pagination');
+
+      if (!data.items || data.items.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        pagination.classList.add('hidden');
+      } else {
+        empty.classList.add('hidden');
+        tbody.innerHTML = data.items.map(item => {
+          const name = item.business_name
+            ? item.business_name
+            : [item.first_name, item.middle_name, item.last_name].filter(Boolean).join(' ');
+          const location = [item.city, item.state].filter(Boolean).join(', ');
+          const isActive = !item.reinstatement_date;
+          const statusBadge = isActive
+            ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">Active</span>'
+            : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">Reinstated</span>';
+          return `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                ${name || '—'}
+                ${item.npi ? `<br><span class="text-xs text-gray-400">NPI: ${item.npi}</span>` : ''}
+              </td>
+              <td class="px-4 py-3">${typeBadge(item.general_type)}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">${item.specialty || '—'}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">${location || '—'}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">${formatDate(item.exclusion_date)}</td>
+              <td class="px-4 py-3">${exclTypeBadge(item.exclusion_type)}</td>
+              <td class="px-4 py-3">${statusBadge}</td>
+            </tr>
+          `;
+        }).join('');
+
+        // fast mode: estimate pages from current page
+        const hasMore = data.items.length === browsePageSize;
+        document.getElementById('browse-page-info').textContent =
+          `Page ${browsePage}${!hasMore ? ' (end of results)' : ''}`;
+        document.getElementById('browse-prev').disabled = browsePage <= 1;
+        document.getElementById('browse-next').disabled = !hasMore;
+        pagination.classList.remove('hidden');
+      }
+
+      document.getElementById('browse-loading').classList.add('hidden');
+      document.getElementById('browse-content').classList.remove('hidden');
+    } catch (e) {
+      document.getElementById('browse-loading').classList.add('hidden');
+      const err = document.getElementById('browse-error');
+      err.textContent = 'Error loading exclusions data. The LEIE import may not have been run yet.';
+      err.classList.remove('hidden');
+    }
+  }
+
+  function navigateBrowse(dir) {
+    browsePage += dir;
+    loadBrowse();
+    window.scrollTo(0, 0);
+  }
+
+  // Init
+  loadStats();
+  loadMatches();
+</script>
+
+</DashboardLayout>
