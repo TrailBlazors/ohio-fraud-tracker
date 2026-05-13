@@ -8,7 +8,7 @@ import time
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, case
 
 from app.database import get_db
 from app.models import Award, ExcludedEntity, FraudFlag, Recipient
@@ -16,13 +16,14 @@ from app.models import Award, ExcludedEntity, FraudFlag, Recipient
 router = APIRouter()
 
 _cache: dict[str, tuple[float, Any]] = {}
-CACHE_TTL = 3600  # 1 hour
+CACHE_TTL = 3600        # 1 hour for search results
+MATCHES_TTL = 43200     # 12 hours — only changes after an import run
 
 
-def _get_cached(key: str):
+def _get_cached(key: str, ttl: float = CACHE_TTL):
     if key in _cache:
         ts, val = _cache[key]
-        if time.time() - ts < CACHE_TTL:
+        if time.time() - ts < ttl:
             return val
     return None
 
@@ -45,31 +46,19 @@ def _parse_evidence(evidence_str: str | None) -> dict:
 
 @router.get("/exclusions/stats")
 async def get_exclusions_stats(db: Session = Depends(get_db)):
-    cached = _get_cached("exclusions_stats")
+    cached = _get_cached("exclusions_stats", MATCHES_TTL)
     if cached:
         return cached
 
-    total = db.query(func.count(ExcludedEntity.id)).scalar() or 0
-    ohio_count = (
-        db.query(func.count(ExcludedEntity.id))
-        .filter(ExcludedEntity.state == "OH")
-        .scalar() or 0
-    )
-    individuals = (
-        db.query(func.count(ExcludedEntity.id))
-        .filter(ExcludedEntity.general_type == "INDIV")
-        .scalar() or 0
-    )
-    entities = (
-        db.query(func.count(ExcludedEntity.id))
-        .filter(ExcludedEntity.general_type == "ENTITY")
-        .scalar() or 0
-    )
-    active_count = (
-        db.query(func.count(ExcludedEntity.id))
-        .filter(ExcludedEntity.reinstatement_date == None)  # noqa: E711
-        .scalar() or 0
-    )
+    # Single pass over excluded_entities for all counts
+    row = db.query(
+        func.count(ExcludedEntity.id),
+        func.sum(case((ExcludedEntity.state == "OH", 1), else_=0)),
+        func.sum(case((ExcludedEntity.general_type == "INDIV", 1), else_=0)),
+        func.sum(case((ExcludedEntity.general_type == "ENTITY", 1), else_=0)),
+        func.sum(case((ExcludedEntity.reinstatement_date == None, 1), else_=0)),  # noqa: E711
+    ).one()
+
     flagged_recipients = (
         db.query(func.count(FraudFlag.id))
         .filter(FraudFlag.flag_type == "excluded_provider")
@@ -77,11 +66,11 @@ async def get_exclusions_stats(db: Session = Depends(get_db)):
     )
 
     result = {
-        "total": total,
-        "ohio_count": ohio_count,
-        "individuals": individuals,
-        "entities": entities,
-        "active_count": active_count,
+        "total": int(row[0] or 0),
+        "ohio_count": int(row[1] or 0),
+        "individuals": int(row[2] or 0),
+        "entities": int(row[3] or 0),
+        "active_count": int(row[4] or 0),
         "flagged_recipients": flagged_recipients,
     }
     _set_cached("exclusions_stats", result)
@@ -94,11 +83,29 @@ async def get_exclusion_matches(
     page_size: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
+    cache_key = f"matches:{page}:{page_size}"
+    cached = _get_cached(cache_key, MATCHES_TTL)
+    if cached:
+        return cached
+
     offset = (page - 1) * page_size
 
-    flags_with_recipients = (
-        db.query(FraudFlag, Recipient)
+    # JOIN FraudFlag + Recipient + Award totals in one query
+    # Subquery: total awards per recipient
+    award_sub = (
+        db.query(
+            Award.recipient_id,
+            func.sum(Award.amount).label("total_amount"),
+            func.count(Award.id).label("award_count"),
+        )
+        .group_by(Award.recipient_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(FraudFlag, Recipient, award_sub.c.total_amount, award_sub.c.award_count)
         .join(Recipient, FraudFlag.recipient_id == Recipient.id)
+        .outerjoin(award_sub, award_sub.c.recipient_id == Recipient.id)
         .filter(FraudFlag.flag_type == "excluded_provider")
         .order_by(desc(FraudFlag.created_at))
         .offset(offset)
@@ -112,29 +119,16 @@ async def get_exclusion_matches(
         .scalar() or 0
     )
 
-    # Batch-fetch award totals for all recipients in this page
-    recipient_ids = [r.id for _, r in flags_with_recipients]
-    award_totals: dict[int, dict] = {}
-    if recipient_ids:
-        rows = (
-            db.query(Award.recipient_id, func.sum(Award.amount), func.count(Award.id))
-            .filter(Award.recipient_id.in_(recipient_ids))
-            .group_by(Award.recipient_id)
-            .all()
-        )
-        for rid, total_amt, cnt in rows:
-            award_totals[rid] = {"total_amount": float(total_amt or 0), "award_count": cnt}
-
     items = []
-    for flag, recipient in flags_with_recipients:
+    for flag, recipient, total_amount, award_count in rows:
         evidence = _parse_evidence(flag.evidence)
         items.append({
             "recipient_id": recipient.id,
             "recipient_name": recipient.name,
             "city": recipient.city,
             "state": recipient.state,
-            "total_amount": award_totals.get(recipient.id, {}).get("total_amount", 0.0),
-            "award_count": award_totals.get(recipient.id, {}).get("award_count", 0),
+            "total_amount": float(total_amount or 0),
+            "award_count": int(award_count or 0),
             "flag_description": flag.description,
             "flag_created_at": flag.created_at.isoformat() if flag.created_at else None,
             "excluded_name": evidence.get("excluded_name"),
@@ -144,7 +138,9 @@ async def get_exclusion_matches(
             "npi": evidence.get("npi"),
         })
 
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    result = {"items": items, "total": total, "page": page, "page_size": page_size}
+    _set_cached(cache_key, result)
+    return result
 
 
 @router.get("/exclusions")
