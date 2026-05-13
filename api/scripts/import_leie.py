@@ -109,7 +109,21 @@ def import_leie_data(csv_content: str, db: Session) -> dict:
     
     # Parse CSV
     reader = csv.DictReader(StringIO(csv_content))
-    
+
+    # Print actual headers so we can verify column names match
+    print(f"  CSV columns: {reader.fieldnames}")
+
+    # Build case-insensitive column lookup
+    def col(row, *names):
+        for name in names:
+            if name in row:
+                return row[name].strip() or None
+            # Try case-insensitive
+            for k in row:
+                if k.strip().upper() == name.upper():
+                    return row[k].strip() or None
+        return None
+
     stats = {
         "total": 0,
         "individuals": 0,
@@ -126,46 +140,49 @@ def import_leie_data(csv_content: str, db: Session) -> dict:
         
         try:
             # Build normalized name
-            if row.get("BUSNAME"):
-                name_normalized = normalize_name(row["BUSNAME"])
+            busname = col(row, "BUSNAME")
+            if busname:
+                name_normalized = normalize_name(busname)
             else:
-                # Combine individual name parts
                 name_parts = [
-                    row.get("FIRSTNAME", ""),
-                    row.get("MIDNAME", ""),
-                    row.get("LASTNAME", "")
+                    col(row, "FIRSTNAME") or "",
+                    col(row, "MIDNAME") or "",
+                    col(row, "LASTNAME") or "",
                 ]
                 name_normalized = normalize_name(" ".join(p for p in name_parts if p))
-            
+
+            general = col(row, "GENERAL") or ""
+            state = col(row, "STATE") or ""
+
             batch.append({
-                "last_name": row.get("LASTNAME", "").strip() or None,
-                "first_name": row.get("FIRSTNAME", "").strip() or None,
-                "middle_name": row.get("MIDNAME", "").strip() or None,
-                "business_name": row.get("BUSNAME", "").strip() or None,
+                "last_name": col(row, "LASTNAME"),
+                "first_name": col(row, "FIRSTNAME"),
+                "middle_name": col(row, "MIDNAME"),
+                "business_name": busname,
                 "name_normalized": name_normalized or None,
-                "general_type": row.get("GENERAL", "").strip() or None,
-                "specialty": row.get("SPECIALTY", "").strip() or None,
-                "upin": row.get("UPIN", "").strip() or None,
-                "npi": row.get("NPI", "").strip() or None,
-                "dob": parse_date(row.get("DOB", "")),
-                "address": row.get("ADDRESS", "").strip() or None,
-                "city": row.get("CITY", "").strip() or None,
-                "state": row.get("STATE", "").strip() or None,
-                "zip_code": row.get("ZIP", "").strip() or None,
-                "exclusion_type": row.get("EXCLTYPE", "").strip() or None,
-                "exclusion_date": parse_date(row.get("EXCLDATE", "")),
-                "reinstatement_date": parse_date(row.get("REINDATE", "")),
-                "waiver_date": parse_date(row.get("WAIVERDATE", "")),
-                "waiver_state": row.get("WVRSTATE", "").strip() or None,
+                "general_type": general or None,
+                "specialty": col(row, "SPECIALTY"),
+                "upin": col(row, "UPIN"),
+                "npi": col(row, "NPI"),
+                "dob": parse_date(col(row, "DOB") or ""),
+                "address": col(row, "ADDRESS"),
+                "city": col(row, "CITY"),
+                "state": state or None,
+                "zip_code": col(row, "ZIP"),
+                "exclusion_type": col(row, "EXCLTYPE"),
+                "exclusion_date": parse_date(col(row, "EXCLDATE") or ""),
+                "reinstatement_date": parse_date(col(row, "REINDATE") or ""),
+                "waiver_date": parse_date(col(row, "WAIVERDATE") or ""),
+                "waiver_state": col(row, "WVRSTATE"),
             })
-            
+
             # Track stats
-            if row.get("GENERAL") == "INDIV":
+            if general == "INDIV":
                 stats["individuals"] += 1
             else:
                 stats["entities"] += 1
-            
-            if row.get("STATE") == "OH":
+
+            if state == "OH":
                 stats["ohio_records"] += 1
             
             # Commit in batches

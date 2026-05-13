@@ -246,22 +246,40 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 <script is:inline>
   const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:8000' : '';
 
-  // Exclusion type → human label
+  // Exclusion type → human label (all known LEIE codes)
   const EXCL_TYPE_LABELS = {
-    '1128a1': 'Program fraud conviction',
+    // Mandatory — Section 1128(a)
+    '1128a1': 'Program-related crime conviction',
     '1128a2': 'Patient abuse conviction',
     '1128a3': 'Healthcare fraud felony',
     '1128a4': 'Controlled substance felony',
+    // Permissive — Section 1128(b)
     '1128b1': 'Healthcare fraud misdemeanor',
-    '1128b2': 'Controlled substance misdemeanor',
-    '1128b4': 'License revocation',
-    '1128b5': 'Federal agency exclusion',
-    '1128b6': 'Excess charges/services',
+    '1128b2': 'Obstruction of investigation',
+    '1128b3': 'Controlled substance misdemeanor',
+    '1128b4': 'License revocation/suspension',
+    '1128b5': 'Federal/state program exclusion',
+    '1128b6': 'Excess charges or unnecessary services',
     '1128b7': 'Fraud / kickbacks',
-    '1128b14': 'Education loan default',
-    '1128b15': 'Owned by excluded entity',
-    '1128b16': 'Affiliated with excluded entity',
+    '1128b8': 'Entity controlled by excluded individual',
+    '1128b9': 'Failure to disclose required information',
+    '1128b10': 'Failure to supply subcontractor info',
+    '1128b11': 'Failure to supply payment information',
+    '1128b12': 'Failure to grant immediate access',
+    '1128b13': 'Failure to take corrective action',
+    '1128b14': 'Health education loan default',
+    '1128b15': 'Individual controlling sanctioned entity',
+    '1128b16': 'False statements / misrepresentation',
+    // Other authorities
+    '1128c3':  'Civil monetary penalty (CMP)',
+    '1156':    'Gross/flagrant violations',
+    '1892':    'Medicare Advantage',
   };
+
+  function exclTypeKey(code) {
+    if (!code) return null;
+    return code.toString().toLowerCase().replace(/\s+/g, '').replace(/[()]/g, '');
+  }
 
   function formatCurrency(n) {
     if (!n) return '$0';
@@ -278,9 +296,10 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   }
 
   function exclTypeBadge(code) {
-    const label = EXCL_TYPE_LABELS[code] || code || 'Unknown';
-    const isConviction = code && (code.startsWith('1128a') || code === '1128b7');
-    const isLicense = code === '1128b4' || code === '1128b5';
+    const key = exclTypeKey(code);
+    const label = (key && EXCL_TYPE_LABELS[key]) || code || '—';
+    const isConviction = key && (key.startsWith('1128a') || key === '1128b7');
+    const isLicense = key === '1128b4' || key === '1128b5';
     const color = isConviction
       ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'
       : isLicense
