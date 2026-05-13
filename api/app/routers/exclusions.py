@@ -5,19 +5,23 @@ LEIE Exclusions endpoints - OIG excluded providers cross-referenced against Ohio
 import ast
 import json
 import time
+from datetime import datetime
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, case
 
 from app.database import get_db
-from app.models import Award, ExcludedEntity, FraudFlag, Recipient
+from app.models import Award, CachedStats, ExcludedEntity, FraudFlag, Recipient
 
 router = APIRouter()
 
 _cache: dict[str, tuple[float, Any]] = {}
 CACHE_TTL = 3600        # 1 hour for search results
 MATCHES_TTL = 43200     # 12 hours — only changes after an import run
+
+# DB cache key for page-1 matches (survives process restarts)
+_DB_MATCHES_KEY = "exclusions_matches_p1_v2"
 
 
 def _get_cached(key: str, ttl: float = CACHE_TTL):
@@ -44,13 +48,45 @@ def _parse_evidence(evidence_str: str | None) -> dict:
             return {}
 
 
+def _get_db_matches(db: Session) -> dict | None:
+    """Return pre-computed page-1 matches from CachedStats if fresh enough."""
+    try:
+        row = db.query(CachedStats).filter(CachedStats.stat_key == _DB_MATCHES_KEY).first()
+        if row and row.stat_json:
+            age = (datetime.utcnow() - row.updated_at).total_seconds()
+            if age < MATCHES_TTL:
+                return json.loads(row.stat_json)
+    except Exception:
+        pass
+    return None
+
+
+def _set_db_matches(db: Session, result: dict):
+    """Persist page-1 matches to CachedStats so cold starts are fast."""
+    try:
+        existing = db.query(CachedStats).filter(CachedStats.stat_key == _DB_MATCHES_KEY).first()
+        payload = json.dumps(result)
+        if existing:
+            existing.stat_json = payload
+            existing.stat_value = float(result.get("total", 0))
+            existing.updated_at = datetime.utcnow()
+        else:
+            db.add(CachedStats(
+                stat_key=_DB_MATCHES_KEY,
+                stat_value=float(result.get("total", 0)),
+                stat_json=payload,
+            ))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
 @router.get("/exclusions/stats")
 async def get_exclusions_stats(db: Session = Depends(get_db)):
     cached = _get_cached("exclusions_stats", MATCHES_TTL)
     if cached:
         return cached
 
-    # Single pass over excluded_entities for all counts
     row = db.query(
         func.count(ExcludedEntity.id),
         func.sum(case((ExcludedEntity.state == "OH", 1), else_=0)),
@@ -87,6 +123,13 @@ async def get_exclusion_matches(
     cached = _get_cached(cache_key, MATCHES_TTL)
     if cached:
         return cached
+
+    # For page 1 / default page size, also check the DB-persisted cache
+    if page == 1 and page_size == 25:
+        db_cached = _get_db_matches(db)
+        if db_cached:
+            _set_cached(cache_key, db_cached)
+            return db_cached
 
     offset = (page - 1) * page_size
 
@@ -145,6 +188,11 @@ async def get_exclusion_matches(
 
     result = {"items": items, "total": total, "page": page, "page_size": page_size}
     _set_cached(cache_key, result)
+
+    # Persist page 1 to DB so the next cold start skips the query entirely
+    if page == 1 and page_size == 25:
+        _set_db_matches(db, result)
+
     return result
 
 
@@ -189,13 +237,18 @@ async def search_exclusions(
             "business_name": e.business_name,
             "general_type": e.general_type,
             "specialty": e.specialty,
+            "upin": e.upin,
             "npi": e.npi,
+            "dob": e.dob.isoformat() if e.dob else None,
+            "address": e.address,
             "city": e.city,
             "state": e.state,
             "zip_code": e.zip_code,
             "exclusion_type": e.exclusion_type,
             "exclusion_date": e.exclusion_date.isoformat() if e.exclusion_date else None,
             "reinstatement_date": e.reinstatement_date.isoformat() if e.reinstatement_date else None,
+            "waiver_date": e.waiver_date.isoformat() if e.waiver_date else None,
+            "waiver_state": e.waiver_state,
         }
         for e in rows
     ]

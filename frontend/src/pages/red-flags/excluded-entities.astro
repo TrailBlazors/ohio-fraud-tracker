@@ -497,23 +497,34 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           const name = item.business_name
             ? item.business_name
             : [item.first_name, item.middle_name, item.last_name].filter(Boolean).join(' ');
-          const location = [item.city, item.state].filter(Boolean).join(', ');
+          const addrParts = [item.address, item.city, item.state, item.zip_code].filter(Boolean);
+          const location = addrParts.length
+            ? `${item.address ? item.address + '<br>' : ''}${[item.city, item.state].filter(Boolean).join(', ')}${item.zip_code ? ' ' + item.zip_code : ''}`
+            : '—';
           const isActive = !item.reinstatement_date;
           const statusBadge = isActive
             ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">Active</span>'
-            : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">Reinstated</span>';
+            : `<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">Reinstated</span><br><span class="text-xs text-gray-400">${formatDate(item.reinstatement_date)}</span>`;
+          const waiverInfo = item.waiver_date
+            ? `<br><span class="text-xs text-amber-600 dark:text-amber-400">Waiver: ${formatDate(item.waiver_date)}${item.waiver_state ? ' (' + item.waiver_state + ')' : ''}</span>`
+            : '';
+          const idInfo = [
+            item.npi ? `NPI: ${item.npi}` : '',
+            item.upin ? `UPIN: ${item.upin}` : '',
+            item.dob ? `DOB: ${formatDate(item.dob)}` : '',
+          ].filter(Boolean).join(' · ');
           return `
             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
                 ${name || '—'}
-                ${item.npi ? `<br><span class="text-xs text-gray-400">NPI: ${item.npi}</span>` : ''}
+                ${idInfo ? `<br><span class="text-xs text-gray-400">${idInfo}</span>` : ''}
               </td>
               <td class="px-4 py-3">${typeBadge(item.general_type)}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">${item.specialty || '—'}</td>
-              <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">${location || '—'}</td>
+              <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">${location}</td>
               <td class="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">${formatDate(item.exclusion_date)}</td>
               <td class="px-4 py-3">${exclTypeBadge(item.exclusion_type)}</td>
-              <td class="px-4 py-3">${statusBadge}</td>
+              <td class="px-4 py-3">${statusBadge}${waiverInfo}</td>
             </tr>
           `;
         }).join('');
