@@ -44,14 +44,14 @@ function getSourceInfo(sourceKey: string) {
   return null;
 }
 
-// Structured data for the organization
-const structuredData = {
+// WebSite schema (enables Google Sitelinks Searchbox)
+const websiteSchema = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   "name": "Ohio Fraud Tracker",
   "alternateName": "OFT",
   "url": "https://ohiofraudtracker.org",
-  "description": "A free transparency tool tracking federal grants, loans, and contracts in Ohio to help taxpayers identify potential fraud and waste.",
+  "description": "A free transparency tool tracking federal grants, loans, and contracts flowing into Ohio to help taxpayers identify potential fraud, waste, and abuse of public funds.",
   "potentialAction": {
     "@type": "SearchAction",
     "target": {
@@ -59,16 +59,65 @@ const structuredData = {
       "urlTemplate": "https://ohiofraudtracker.org/search?q={search_term_string}"
     },
     "query-input": "required name=search_term_string"
-  },
-  "publisher": {
-    "@type": "Organization",
-    "name": "Ohio Fraud Tracker",
-    "logo": {
-      "@type": "ImageObject",
-      "url": "https://ohiofraudtracker.org/favicon.svg"
-    }
   }
 };
+
+// Organization schema (drives Google's knowledge panel / rich listing)
+const orgSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Ohio Fraud Tracker",
+  "alternateName": "OFT",
+  "url": "https://ohiofraudtracker.org",
+  "logo": {
+    "@type": "ImageObject",
+    "url": "https://ohiofraudtracker.org/og-image.png",
+    "width": 1200,
+    "height": 630
+  },
+  "description": "Ohio Fraud Tracker is a free public transparency tool that tracks billions in federal grants, PPP loans, and government contracts flowing into Ohio — helping taxpayers identify potential fraud, waste, and abuse of public funds.",
+  "foundingDate": "2024",
+  "areaServed": {
+    "@type": "State",
+    "name": "Ohio",
+    "sameAs": "https://www.wikidata.org/wiki/Q1397"
+  },
+  "knowsAbout": [
+    "Government transparency",
+    "Federal grant tracking",
+    "Medicare fraud",
+    "Medicaid fraud",
+    "PPP loan fraud",
+    "Ohio government spending",
+    "Taxpayer accountability"
+  ],
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "contactType": "customer support",
+    "email": "support@ohiofraudtracker.org"
+  }
+};
+
+// Breadcrumb schema for nested pages
+const breadcrumbItems: { name: string; url: string }[] = [
+  { name: "Ohio Fraud Tracker", url: "https://ohiofraudtracker.org/" }
+];
+if (isRedFlagsSection) {
+  breadcrumbItems.push({ name: "Red Flags", url: "https://ohiofraudtracker.org/red-flags" });
+}
+if (title !== "Dashboard") {
+  breadcrumbItems.push({ name: title, url: canonicalURL });
+}
+const breadcrumbSchema = breadcrumbItems.length > 1 ? {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": breadcrumbItems.map((item, i) => ({
+    "@type": "ListItem",
+    "position": i + 1,
+    "name": item.name,
+    "item": item.url
+  }))
+} : null;
 ---
 
 <!DOCTYPE html>
@@ -116,7 +165,9 @@ const structuredData = {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   
   <!-- Structured Data -->
-  <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+  <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(orgSchema)} />
+  {breadcrumbSchema && <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />}
   
   <style>
     /* Force dark mode table text colors - aggressive override */
