@@ -4,8 +4,8 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
 
 <DashboardLayout 
   title="Data Status - Ohio Fraud Tracker" 
-  description="Check the status of data imports from USAspending.gov, SBA, and Ohio Checkbook. See when data was last updated and import statistics."
-  keywords="Ohio Fraud Tracker data, USAspending data, SBA PPP data, Ohio Checkbook data, data freshness"
+  description="Check the status of data imports from USAspending.gov, SBA, Ohio Checkbook, and HHS OIG LEIE. See when data was last updated and import statistics."
+  keywords="Ohio Fraud Tracker data, USAspending data, SBA PPP data, Ohio Checkbook data, HHS OIG LEIE, excluded entities data, data freshness"
 >
   <div class="space-y-6">
     <!-- Page Header -->
@@ -181,6 +181,9 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
                       <p class="text-sm text-gray-500 dark:text-gray-400">records</p>
                       ${source.key === 'ohio_sos' ? `
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${formatNumber(source.matched_recipients || 0)} matched</p>
+                      ` : source.key === 'leie' ? `
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">${formatNumber(source.ohio_count || 0)} in Ohio</p>
+                        <p class="text-sm text-red-600 dark:text-red-400 mt-1">${formatNumber(source.matched_recipients || 0)} recipients flagged</p>
                       ` : `
                         <p class="text-lg font-semibold text-green-600 dark:text-green-400 mt-1">${formatCurrency(source.total_amount)}</p>
                       `}
@@ -221,6 +224,16 @@ import DashboardLayout from '../layouts/DashboardLayout.astro';
                       <strong>Note:</strong> Ohio Checkbook data includes bulk payments where recipient names are masked for privacy
                       (e.g., student scholarships). Multiple identical-looking transactions on the same date are typically
                       separate payments to different individuals, not duplicates.
+                    </p>
+                  </div>
+                ` : ''}
+                ${source.key === 'leie' ? `
+                  <div class="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <p class="text-sm text-red-700 dark:text-red-300">
+                      <strong>Note:</strong> The LEIE is a reference dataset, not an awards source. Records are cross-referenced
+                      against award recipients by name to flag potential violations. A match indicates a recipient shares a name
+                      with an excluded provider — not conclusive proof of fraud. Updated monthly by HHS OIG.
+                      ${source.status === 'active' ? `<span class="ml-1">${formatNumber(source.active_count || 0)} currently active exclusions nationwide.</span>` : ''}
                     </p>
                   </div>
                 ` : ''}

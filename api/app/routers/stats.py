@@ -1002,12 +1002,15 @@ async def get_data_status(db: Session = Depends(get_db)):
     if cached:
         return cached
     
-    # Try to load from database cache
+    # Try to load from database cache — skip if it predates LEIE support
     cache_row = db.query(CachedStats).filter(CachedStats.stat_key == "data_status").first()
     if cache_row and cache_row.stat_json:
         result = json.loads(cache_row.stat_json)
-        set_cached("data_status", result)
-        return result
+        source_keys = {s["key"] for s in result.get("sources", [])}
+        if "leie" in source_keys:
+            set_cached("data_status", result)
+            return result
+        # Stale cache — fall through and recompute
     
     SOURCE_INFO = {
         "usaspending": {
@@ -1029,6 +1032,11 @@ async def get_data_status(db: Session = Depends(get_db)):
             "name": "Ohio Secretary of State",
             "description": "Business registration status (partial - monthly status changes only, not full database)",
             "url": "https://www.ohiosos.gov/businesses/"
+        },
+        "leie": {
+            "name": "HHS OIG LEIE",
+            "description": "List of Excluded Individuals/Entities — providers banned from Medicare, Medicaid, and federal healthcare programs",
+            "url": "https://oig.hhs.gov/exclusions/"
         }
     }
     
@@ -1049,6 +1057,20 @@ async def get_data_status(db: Session = Depends(get_db)):
     except Exception:
         pass
 
+    # Check LEIE separately (not in awards table)
+    leie_count = 0
+    leie_ohio_count = 0
+    leie_flagged = 0
+    leie_active = 0
+    try:
+        from app.models import ExcludedEntity, FraudFlag
+        leie_count = db.query(func.count(ExcludedEntity.id)).scalar() or 0
+        leie_ohio_count = db.query(func.count(ExcludedEntity.id)).filter(ExcludedEntity.state == "OH").scalar() or 0
+        leie_active = db.query(func.count(ExcludedEntity.id)).filter(ExcludedEntity.reinstatement_date == None).scalar() or 0  # noqa: E711
+        leie_flagged = db.query(func.count(FraudFlag.id)).filter(FraudFlag.flag_type == "excluded_provider").scalar() or 0
+    except Exception:
+        pass
+
     sources = []
     for key, info in SOURCE_INFO.items():
         # Special handling for Ohio SOS (not award data)
@@ -1063,6 +1085,36 @@ async def get_data_status(db: Session = Depends(get_db)):
                     "record_count": ohio_sos_count,
                     "total_amount": 0,
                     "matched_recipients": ohio_sos_matched,
+                    "date_range": None,
+                    "by_year": [],
+                    "by_type": []
+                })
+            else:
+                sources.append({
+                    "key": key,
+                    "name": info["name"],
+                    "description": info["description"],
+                    "url": info["url"],
+                    "status": "pending",
+                    "record_count": 0,
+                    "total_amount": 0,
+                    "date_range": None,
+                    "by_year": [],
+                    "by_type": []
+                })
+        elif key == "leie":
+            if leie_count > 0:
+                sources.append({
+                    "key": key,
+                    "name": info["name"],
+                    "description": info["description"],
+                    "url": info["url"],
+                    "status": "active",
+                    "record_count": leie_count,
+                    "total_amount": 0,
+                    "ohio_count": leie_ohio_count,
+                    "active_count": leie_active,
+                    "matched_recipients": leie_flagged,
                     "date_range": None,
                     "by_year": [],
                     "by_type": []
