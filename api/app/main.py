@@ -358,6 +358,22 @@ async def startup_event():
         except Exception as cache_err:
             print(f"⚠ Cache check/warming failed (non-fatal): {cache_err}")
 
+        # Warm exclusions matches cache in background (non-blocking)
+        import asyncio
+        async def _warm_exclusions():
+            try:
+                from app.database import SessionLocal
+                from app.routers.exclusions import get_exclusion_matches
+                db = SessionLocal()
+                try:
+                    await get_exclusion_matches(page=1, page_size=25, db=db)
+                    print("✓ Exclusions matches cache warmed")
+                finally:
+                    db.close()
+            except Exception as ex:
+                print(f"⚠ Exclusions cache warm failed (non-fatal): {ex}")
+        asyncio.create_task(_warm_exclusions())
+
     except Exception as e:
         print(f"✗ Startup error: {e}")
         import traceback

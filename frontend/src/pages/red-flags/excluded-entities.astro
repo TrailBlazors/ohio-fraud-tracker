@@ -546,6 +546,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   // Init
   loadStats();
   loadBrowse(1);
+
+  // Silently warm the matches cache while the user reads Browse LEIE
+  setTimeout(() => fetch(`${apiBase}/api/exclusions/matches?page=1&page_size=25`).catch(() => {}), 1500);
 </script>
 
 </DashboardLayout>
