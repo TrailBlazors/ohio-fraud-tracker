@@ -90,22 +90,16 @@ async def get_exclusion_matches(
 
     offset = (page - 1) * page_size
 
-    # JOIN FraudFlag + Recipient + Award totals in one query
-    # Subquery: total awards per recipient
-    award_sub = (
-        db.query(
-            Award.recipient_id,
-            func.sum(Award.amount).label("total_amount"),
-            func.count(Award.id).label("award_count"),
-        )
-        .group_by(Award.recipient_id)
-        .subquery()
+    total = (
+        db.query(func.count(FraudFlag.id))
+        .filter(FraudFlag.flag_type == "excluded_provider")
+        .scalar() or 0
     )
 
-    rows = (
-        db.query(FraudFlag, Recipient, award_sub.c.total_amount, award_sub.c.award_count)
+    # Step 1: fetch this page of flagged recipients
+    flag_rows = (
+        db.query(FraudFlag, Recipient)
         .join(Recipient, FraudFlag.recipient_id == Recipient.id)
-        .outerjoin(award_sub, award_sub.c.recipient_id == Recipient.id)
         .filter(FraudFlag.flag_type == "excluded_provider")
         .order_by(desc(FraudFlag.created_at))
         .offset(offset)
@@ -113,22 +107,33 @@ async def get_exclusion_matches(
         .all()
     )
 
-    total = (
-        db.query(func.count(FraudFlag.id))
-        .filter(FraudFlag.flag_type == "excluded_provider")
-        .scalar() or 0
-    )
+    # Step 2: award totals only for the ~25 recipients on this page
+    recipient_ids = [r.id for _, r in flag_rows]
+    award_totals: dict[int, tuple[float, int]] = {}
+    if recipient_ids:
+        totals = (
+            db.query(
+                Award.recipient_id,
+                func.sum(Award.amount).label("total_amount"),
+                func.count(Award.id).label("award_count"),
+            )
+            .filter(Award.recipient_id.in_(recipient_ids))
+            .group_by(Award.recipient_id)
+            .all()
+        )
+        award_totals = {row.recipient_id: (float(row.total_amount or 0), int(row.award_count or 0)) for row in totals}
 
     items = []
-    for flag, recipient, total_amount, award_count in rows:
+    for flag, recipient in flag_rows:
         evidence = _parse_evidence(flag.evidence)
+        ta, ac = award_totals.get(recipient.id, (0.0, 0))
         items.append({
             "recipient_id": recipient.id,
             "recipient_name": recipient.name,
             "city": recipient.city,
             "state": recipient.state,
-            "total_amount": float(total_amount or 0),
-            "award_count": int(award_count or 0),
+            "total_amount": ta,
+            "award_count": ac,
             "flag_description": flag.description,
             "flag_created_at": flag.created_at.isoformat() if flag.created_at else None,
             "excluded_name": evidence.get("excluded_name"),
