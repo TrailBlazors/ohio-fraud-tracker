@@ -303,6 +303,57 @@ async def page_recipient_detail(recipient_id: str):
 
 
 # =============================================================================
+# ROOT-LEVEL STATIC ASSETS
+# =============================================================================
+
+# Files that live at the root of the frontend's `public/` directory (og-image.png,
+# apple-touch-icon.png, site.webmanifest, ...). Astro copies them straight to the
+# root of the build output, but nothing served them: only /_assets (Astro's hashed
+# build output) and a handful of hand-written routes were mounted. Social card
+# scrapers such as Twitterbot and facebookexternalhit fetch og:image by absolute
+# URL, so a missing route meant a 404 and a blank link preview.
+ROOT_ASSET_MEDIA_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".webmanifest": "application/manifest+json",
+    ".json": "application/json",
+    ".txt": "text/plain",
+    ".xml": "application/xml",
+}
+
+
+@app.get("/{asset_name}")
+async def root_static_asset(asset_name: str):
+    """Serve a single-segment static file from the root of the frontend build."""
+    if not STATIC_DIR.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+
+    media_type = ROOT_ASSET_MEDIA_TYPES.get(Path(asset_name).suffix.lower())
+    if media_type is None:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    asset_path = (STATIC_DIR / asset_name).resolve()
+
+    # Refuse anything that escapes the static directory (e.g. "..%2Ffoo.png").
+    if not asset_path.is_relative_to(STATIC_DIR.resolve()):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not asset_path.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+
+    return FileResponse(
+        asset_path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+# =============================================================================
 # STATIC ASSETS - Mount after explicit routes
 # =============================================================================
 
