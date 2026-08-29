@@ -3,37 +3,37 @@
 
   <!-- Core pages -->
   <url>
-    <loc>https://ohiofraudtracker.org/</loc>
+    <loc>https://ohiofraud.org/</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/grants</loc>
+    <loc>https://ohiofraud.org/grants</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/loans</loc>
+    <loc>https://ohiofraud.org/loans</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/recipients</loc>
+    <loc>https://ohiofraud.org/recipients</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/politicians</loc>
+    <loc>https://ohiofraud.org/politicians</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/campaign-finance</loc>
+    <loc>https://ohiofraud.org/campaign-finance</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -41,31 +41,31 @@
 
   <!-- Red Flags section -->
   <url>
-    <loc>https://ohiofraudtracker.org/duplicates</loc>
+    <loc>https://ohiofraud.org/duplicates</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/red-flags/top-recipients</loc>
+    <loc>https://ohiofraud.org/red-flags/top-recipients</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/red-flags/funding-before-formation</loc>
+    <loc>https://ohiofraud.org/red-flags/funding-before-formation</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/red-flags/political-donors</loc>
+    <loc>https://ohiofraud.org/red-flags/political-donors</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/red-flags/excluded-entities</loc>
+    <loc>https://ohiofraud.org/red-flags/excluded-entities</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -73,31 +73,31 @@
 
   <!-- Supporting pages -->
   <url>
-    <loc>https://ohiofraudtracker.org/search</loc>
+    <loc>https://ohiofraud.org/search</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/data-status</loc>
+    <loc>https://ohiofraud.org/data-status</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/submit-tip</loc>
+    <loc>https://ohiofraud.org/submit-tip</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/roadmap</loc>
+    <loc>https://ohiofraud.org/roadmap</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://ohiofraudtracker.org/about</loc>
+    <loc>https://ohiofraud.org/about</loc>
     <lastmod>2026-05-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>

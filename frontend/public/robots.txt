@@ -1,11 +1,11 @@
 # Ohio Fraud Tracker - Robots.txt
-# https://ohiofraudtracker.org
+# https://ohiofraud.org
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://ohiofraudtracker.org/sitemap.xml
+Sitemap: https://ohiofraud.org/sitemap.xml
 
 # Allow all search engine crawlers
 User-agent: Googlebot

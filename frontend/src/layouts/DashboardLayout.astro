@@ -13,7 +13,7 @@ const {
   ogImage = "/og-image.png"
 } = Astro.props;
 
-const SITE_URL = "https://ohiofraudtracker.org";
+const SITE_URL = "https://ohiofraud.org";
 
 const currentPath = Astro.url.pathname;
 const canonicalURL = new URL(currentPath, SITE_URL).toString();
@@ -54,13 +54,13 @@ const websiteSchema = {
   "@type": "WebSite",
   "name": "Ohio Fraud Tracker",
   "alternateName": "OFT",
-  "url": "https://ohiofraudtracker.org",
+  "url": "https://ohiofraud.org",
   "description": "A free transparency tool tracking federal grants, loans, and contracts flowing into Ohio to help taxpayers identify potential fraud, waste, and abuse of public funds.",
   "potentialAction": {
     "@type": "SearchAction",
     "target": {
       "@type": "EntryPoint",
-      "urlTemplate": "https://ohiofraudtracker.org/search?q={search_term_string}"
+      "urlTemplate": "https://ohiofraud.org/search?q={search_term_string}"
     },
     "query-input": "required name=search_term_string"
   }
@@ -72,10 +72,10 @@ const orgSchema = {
   "@type": "Organization",
   "name": "Ohio Fraud Tracker",
   "alternateName": "OFT",
-  "url": "https://ohiofraudtracker.org",
+  "url": "https://ohiofraud.org",
   "logo": {
     "@type": "ImageObject",
-    "url": "https://ohiofraudtracker.org/og-image.png",
+    "url": "https://ohiofraud.org/og-image.png",
     "width": 1200,
     "height": 630
   },
@@ -98,16 +98,16 @@ const orgSchema = {
   "contactPoint": {
     "@type": "ContactPoint",
     "contactType": "customer support",
-    "email": "support@ohiofraudtracker.org"
+    "email": "support@ohiofraud.org"
   }
 };
 
 // Breadcrumb schema for nested pages
 const breadcrumbItems: { name: string; url: string }[] = [
-  { name: "Ohio Fraud Tracker", url: "https://ohiofraudtracker.org/" }
+  { name: "Ohio Fraud Tracker", url: "https://ohiofraud.org/" }
 ];
 if (isRedFlagsSection) {
-  breadcrumbItems.push({ name: "Red Flags", url: "https://ohiofraudtracker.org/red-flags" });
+  breadcrumbItems.push({ name: "Red Flags", url: "https://ohiofraud.org/red-flags" });
 }
 if (title !== "Dashboard") {
   breadcrumbItems.push({ name: title, url: canonicalURL });
@@ -491,11 +491,11 @@ const breadcrumbSchema = breadcrumbItems.length > 1 ? {
           <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">
             Help us improve! Send feedback, report bugs, or suggest features.
           </p>
-          <a href="mailto:support@ohiofraudtracker.org" class="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+          <a href="mailto:support@ohiofraud.org" class="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
             </svg>
-            support@ohiofraudtracker.org
+            support@ohiofraud.org
           </a>
         </div>
       </div>
@@ -575,7 +575,7 @@ const breadcrumbSchema = breadcrumbItems.length > 1 ? {
           </div>
           
           <div class="flex flex-wrap items-center gap-4 md:justify-end">
-            <a href="mailto:support@ohiofraudtracker.org" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
+            <a href="mailto:support@ohiofraud.org" class="hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
               </svg>
